@@ -1,3 +1,6 @@
+// Store chart instances to destroy before re-creating
+let charts = {};
+
 async function checkAuth() {
     try {
         const response = await fetch('/api/check-auth');
@@ -65,8 +68,9 @@ async function loadData() {
 }
 
 function renderEmotionChart(emotions) {
+    if (charts.emotion) charts.emotion.destroy();
     const ctx = document.getElementById('emotionChart').getContext('2d');
-    new Chart(ctx, {
+    charts.emotion = new Chart(ctx, {
         type: 'doughnut',
         data: {
             labels: Object.keys(emotions || {}),
@@ -87,13 +91,14 @@ function renderEmotionChart(emotions) {
 }
 
 function renderTagsChart(tags) {
+    if (charts.tags) charts.tags.destroy();
     // Sort and take top 10
     const sortedTags = Object.entries(tags || {})
         .sort((a, b) => b[1] - a[1])
         .slice(0, 10);
-        
+
     const ctx = document.getElementById('tagsChart').getContext('2d');
-    new Chart(ctx, {
+    charts.tags = new Chart(ctx, {
         type: 'bar',
         data: {
             labels: sortedTags.map(t => t[0]),
@@ -115,8 +120,9 @@ function renderTagsChart(tags) {
 }
 
 function renderMethodsChart(methods) {
+    if (charts.methods) charts.methods.destroy();
     const ctx = document.getElementById('methodsChart').getContext('2d');
-    new Chart(ctx, {
+    charts.methods = new Chart(ctx, {
         type: 'pie',
         data: {
             labels: Object.keys(methods || {}),
@@ -133,12 +139,13 @@ function renderMethodsChart(methods) {
 }
 
 function renderDowChart(dow) {
+    if (charts.dow) charts.dow.destroy();
     // Map day numbers (0-6) to names
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const data = days.map((_, i) => dow[i] || 0);
-    
+
     const ctx = document.getElementById('dowChart').getContext('2d');
-    new Chart(ctx, {
+    charts.dow = new Chart(ctx, {
         type: 'line',
         data: {
             labels: days,
