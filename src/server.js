@@ -16,20 +16,53 @@ app.use(express.static(path.join(__dirname, '../public')));
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
-// Debug: Check if env vars are loaded
 console.log('SUPABASE_URL set:', !!supabaseUrl, supabaseUrl ? `(${supabaseUrl.substring(0, 20)}...)` : '');
 console.log('SUPABASE_SERVICE_KEY set:', !!supabaseKey, supabaseKey ? `(${supabaseKey.length} chars)` : '');
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Helper functions
-function getStartOfWeek(date = new Date()) {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day;
-    d.setDate(diff);
-    d.setHours(0, 0, 0, 0);
-    return d;
+function getDateRange(range) {
+    const now = new Date();
+    const end = now;
+    let start, prevStart, prevEnd;
+
+    switch (range) {
+        case '7d':
+            start = new Date(now);
+            start.setDate(start.getDate() - 7);
+            prevEnd = new Date(start);
+            prevStart = new Date(prevEnd);
+            prevStart.setDate(prevStart.getDate() - 7);
+            break;
+        case '30d':
+            start = new Date(now);
+            start.setDate(start.getDate() - 30);
+            prevEnd = new Date(start);
+            prevStart = new Date(prevEnd);
+            prevStart.setDate(prevStart.getDate() - 30);
+            break;
+        case '90d':
+            start = new Date(now);
+            start.setDate(start.getDate() - 90);
+            prevEnd = new Date(start);
+            prevStart = new Date(prevEnd);
+            prevStart.setDate(prevStart.getDate() - 90);
+            break;
+        case 'all':
+            start = new Date('2020-01-01'); // Beginning of time for the app
+            prevStart = null;
+            prevEnd = null;
+            break;
+        default:
+            start = new Date(now);
+            start.setDate(start.getDate() - 30);
+            prevEnd = new Date(start);
+            prevStart = new Date(prevEnd);
+            prevStart.setDate(prevStart.getDate() - 30);
+    }
+
+    return { start, end, prevStart, prevEnd, days: range === 'all' ? null : parseInt(range) || 30 };
 }
 
 function groupByDate(items, dateField = 'created_at') {
@@ -41,10 +74,12 @@ function groupByDate(items, dateField = 'created_at') {
     return grouped;
 }
 
-function getLast30DaysArray(groupedData) {
+function getTimeSeriesArray(groupedData, days) {
     const result = [];
     const today = new Date();
-    for (let i = 29; i >= 0; i--) {
+    const numDays = days || 30;
+
+    for (let i = numDays - 1; i >= 0; i--) {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
         const dateStr = date.toISOString().split('T')[0];
@@ -69,7 +104,7 @@ const authMiddleware = (req, res, next) => {
 app.post('/api/login', (req, res) => {
     const { password } = req.body;
     if (password === process.env.DASHBOARD_PASSWORD) {
-        res.cookie('dashboard_auth', password, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 }); // 1 day
+        res.cookie('dashboard_auth', password, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
         res.json({ success: true });
     } else {
         res.status(401).json({ error: 'Invalid password' });
@@ -82,138 +117,166 @@ app.post('/api/logout', (req, res) => {
     res.json({ success: true });
 });
 
-// Data Endpoints (Protected)
+// Main Stats Endpoint with time range support
 app.get('/api/stats', authMiddleware, async (req, res) => {
     try {
-        const now = new Date();
-        const weekStart = getStartOfWeek();
-        const lastWeekStart = new Date(weekStart);
-        lastWeekStart.setDate(lastWeekStart.getDate() - 7);
-        const thirtyDaysAgo = new Date(now);
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const sevenDaysAgo = new Date(now);
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const range = req.query.range || '30d';
+        const { start, end, prevStart, prevEnd, days } = getDateRange(range);
 
-        // Fetch all data in parallel for performance
+        // Fetch all data in parallel
+        const queries = [
+            // Existing RPC for emotions, tags, etc.
+            supabase.rpc('get_dream_statistics'),
+
+            // Total users (all time)
+            supabase.from('profiles').select('*', { count: 'exact', head: true }),
+
+            // Total dreams (all time)
+            supabase.from('dreams').select('*', { count: 'exact', head: true }),
+
+            // Dreams in current period
+            supabase.from('dreams')
+                .select('created_at, user_id')
+                .gte('created_at', start.toISOString())
+                .lte('created_at', end.toISOString()),
+
+            // Users in current period
+            supabase.from('profiles')
+                .select('id, created_at')
+                .gte('created_at', start.toISOString())
+                .lte('created_at', end.toISOString()),
+
+            // User retention buckets (all time)
+            supabase.from('dreams').select('user_id'),
+
+            // All users with their first dream date
+            supabase.from('profiles').select('id, created_at'),
+
+            // All dreams for first-time dreamer calculation
+            supabase.from('dreams')
+                .select('user_id, created_at')
+                .order('created_at', { ascending: true }),
+        ];
+
+        // Add previous period queries if not "all time"
+        if (prevStart && prevEnd) {
+            queries.push(
+                // Dreams in previous period
+                supabase.from('dreams')
+                    .select('created_at, user_id')
+                    .gte('created_at', prevStart.toISOString())
+                    .lt('created_at', prevEnd.toISOString()),
+
+                // Users in previous period
+                supabase.from('profiles')
+                    .select('*', { count: 'exact', head: true })
+                    .gte('created_at', prevStart.toISOString())
+                    .lt('created_at', prevEnd.toISOString())
+            );
+        }
+
+        const results = await Promise.all(queries);
+
         const [
             statsResult,
             totalUsersResult,
             totalDreamsResult,
-            activeUsersResult,
-            dreamsThisWeekResult,
-            dreamsLastWeekResult,
-            newUsersThisWeekResult,
-            dreams30DaysResult,
-            users30DaysResult,
-            recentDreamsResult,
-            retentionResult
-        ] = await Promise.all([
-            // Existing RPC for emotions, tags, etc.
-            supabase.rpc('get_dream_statistics'),
-
-            // Total users
-            supabase.from('profiles').select('*', { count: 'exact', head: true }),
-
-            // Total dreams
-            supabase.from('dreams').select('*', { count: 'exact', head: true }),
-
-            // Active users (last 7 days)
-            supabase.from('dreams')
-                .select('user_id')
-                .gte('created_at', sevenDaysAgo.toISOString()),
-
-            // Dreams this week
-            supabase.from('dreams')
-                .select('*', { count: 'exact', head: true })
-                .gte('created_at', weekStart.toISOString()),
-
-            // Dreams last week
-            supabase.from('dreams')
-                .select('*', { count: 'exact', head: true })
-                .gte('created_at', lastWeekStart.toISOString())
-                .lt('created_at', weekStart.toISOString()),
-
-            // New users this week
-            supabase.from('profiles')
-                .select('*', { count: 'exact', head: true })
-                .gte('created_at', weekStart.toISOString()),
-
-            // Dreams last 30 days (for time series)
-            supabase.from('dreams')
-                .select('created_at')
-                .gte('created_at', thirtyDaysAgo.toISOString()),
-
-            // Users last 30 days (for time series)
-            supabase.from('profiles')
-                .select('created_at')
-                .gte('created_at', thirtyDaysAgo.toISOString()),
-
-            // Recent dreams with user info
-            supabase.from('dreams')
-                .select(`
-                    id,
-                    title,
-                    created_at,
-                    emotions,
-                    profiles:user_id (
-                        username,
-                        first_name,
-                        avatar_url
-                    )
-                `)
-                .order('created_at', { ascending: false })
-                .limit(10),
-
-            // User retention buckets - count dreams per user
-            supabase.from('dreams')
-                .select('user_id')
-        ]);
+            periodDreamsResult,
+            periodUsersResult,
+            retentionResult,
+            allUsersResult,
+            allDreamsForFirstTimeResult,
+            prevPeriodDreamsResult,
+            prevPeriodUsersResult
+        ] = results;
 
         // Process results
         const stats = statsResult.data || {};
         const totalUsers = totalUsersResult.count || 0;
         const totalDreams = totalDreamsResult.count || 0;
 
-        // Active users - count unique user_ids
-        const activeUserIds = new Set((activeUsersResult.data || []).map(d => d.user_id));
-        const activeUsers7Days = activeUserIds.size;
+        // Current period metrics
+        const periodDreams = periodDreamsResult.data || [];
+        const periodUsers = periodUsersResult.data || [];
+        const dreamsInPeriod = periodDreams.length;
+        const newUsersInPeriod = periodUsers.length;
 
-        const dreamsThisWeek = dreamsThisWeekResult.count || 0;
-        const dreamsLastWeek = dreamsLastWeekResult.count || 0;
-        const newUsersThisWeek = newUsersThisWeekResult.count || 0;
+        // Active users in period
+        const activeUserIds = new Set(periodDreams.map(d => d.user_id));
+        const activeUsersInPeriod = activeUserIds.size;
 
-        // Calculate weekly growth percentage
-        const weeklyGrowthPercent = dreamsLastWeek > 0
-            ? ((dreamsThisWeek - dreamsLastWeek) / dreamsLastWeek) * 100
-            : 0;
+        // Previous period metrics
+        const prevPeriodDreams = prevPeriodDreamsResult?.data || [];
+        const prevDreamsCount = prevPeriodDreams.length;
+        const prevNewUsers = prevPeriodUsersResult?.count || 0;
+        const prevActiveUserIds = new Set(prevPeriodDreams.map(d => d.user_id));
+        const prevActiveUsers = prevActiveUserIds.size;
+
+        // Growth calculations
+        const dreamsGrowth = prevDreamsCount > 0
+            ? ((dreamsInPeriod - prevDreamsCount) / prevDreamsCount) * 100
+            : (dreamsInPeriod > 0 ? 100 : 0);
+
+        const usersGrowth = prevNewUsers > 0
+            ? ((newUsersInPeriod - prevNewUsers) / prevNewUsers) * 100
+            : (newUsersInPeriod > 0 ? 100 : 0);
+
+        const activeGrowth = prevActiveUsers > 0
+            ? ((activeUsersInPeriod - prevActiveUsers) / prevActiveUsers) * 100
+            : (activeUsersInPeriod > 0 ? 100 : 0);
 
         // Average dreams per user
         const avgDreamsPerUser = totalUsers > 0 ? totalDreams / totalUsers : 0;
 
-        // Time series data
-        const dreamsGrouped = groupByDate(dreams30DaysResult.data || []);
-        const usersGrouped = groupByDate(users30DaysResult.data || []);
-        const dreams30Days = getLast30DaysArray(dreamsGrouped);
-        const users30Days = getLast30DaysArray(usersGrouped);
-
-        // Process recent dreams
-        const recentDreams = (recentDreamsResult.data || []).map(dream => {
-            const displayName = dream.profiles
-                ? (dream.profiles.first_name || dream.profiles.username || 'Anonymous')
-                : 'Anonymous';
-            return {
-                id: dream.id,
-                title: dream.title || 'Untitled Dream',
-                created_at: dream.created_at,
-                emotion: Array.isArray(dream.emotions) && dream.emotions.length > 0 ? dream.emotions[0] : null,
-                user: {
-                    display_name: displayName,
-                    avatar_url: dream.profiles?.avatar_url || null
-                }
-            };
+        // First-time dreamers calculation
+        const allDreams = allDreamsForFirstTimeResult.data || [];
+        const userFirstDream = {};
+        allDreams.forEach(d => {
+            if (!userFirstDream[d.user_id]) {
+                userFirstDream[d.user_id] = d.created_at;
+            }
         });
 
-        // Calculate retention buckets
+        // Count first-time dreamers in current period
+        let firstTimeDreamers = 0;
+        Object.values(userFirstDream).forEach(firstDreamDate => {
+            const date = new Date(firstDreamDate);
+            if (date >= start && date <= end) {
+                firstTimeDreamers++;
+            }
+        });
+
+        // Returning users (users who had dreamed before this period and dreamed again in this period)
+        const usersWhoDreamedBefore = new Set();
+        allDreams.forEach(d => {
+            const date = new Date(d.created_at);
+            if (date < start) {
+                usersWhoDreamedBefore.add(d.user_id);
+            }
+        });
+
+        let returningUsers = 0;
+        activeUserIds.forEach(userId => {
+            if (usersWhoDreamedBefore.has(userId)) {
+                returningUsers++;
+            }
+        });
+
+        // Conversion rate (users who signed up and recorded at least one dream)
+        const allUsers = allUsersResult.data || [];
+        const usersWithDreams = new Set(Object.keys(userFirstDream));
+        const conversionRate = allUsers.length > 0
+            ? (usersWithDreams.size / allUsers.length) * 100
+            : 0;
+
+        // Time series data
+        const dreamsGrouped = groupByDate(periodDreams);
+        const usersGrouped = groupByDate(periodUsers);
+        const chartDays = days || Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        const dreamsTimeSeries = getTimeSeriesArray(dreamsGrouped, Math.min(chartDays, 90));
+        const usersTimeSeries = getTimeSeriesArray(usersGrouped, Math.min(chartDays, 90));
+
+        // Retention buckets
         const userDreamCounts = {};
         (retentionResult.data || []).forEach(d => {
             userDreamCounts[d.user_id] = (userDreamCounts[d.user_id] || 0) + 1;
@@ -233,23 +296,32 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
             else retention['10+ dreams']++;
         });
 
-        // Combine all data
+        // Response
         const dashboardData = {
+            range,
             overview: {
                 totalDreams,
                 totalUsers,
                 avgDreamsPerUser: Math.round(avgDreamsPerUser * 100) / 100,
-                activeUsers7Days,
-                dreamsThisWeek,
-                dreamsLastWeek,
-                weeklyGrowthPercent: Math.round(weeklyGrowthPercent * 10) / 10,
-                newUsersThisWeek
+                dreamsInPeriod,
+                newUsersInPeriod,
+                activeUsersInPeriod,
+                firstTimeDreamers,
+                returningUsers,
+                conversionRate: Math.round(conversionRate * 10) / 10,
+                // Growth comparisons
+                dreamsGrowth: Math.round(dreamsGrowth * 10) / 10,
+                usersGrowth: Math.round(usersGrowth * 10) / 10,
+                activeGrowth: Math.round(activeGrowth * 10) / 10,
+                // Previous period values for comparison
+                prevDreamsCount,
+                prevNewUsers,
+                prevActiveUsers
             },
             timeSeries: {
-                dreams30Days,
-                users30Days
+                dreams: dreamsTimeSeries,
+                users: usersTimeSeries
             },
-            recentDreams,
             retention,
             emotions: stats.emotions || {},
             tags: stats.tags || {},
@@ -261,6 +333,63 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error fetching stats:', error);
         res.status(500).json({ error: 'Failed to fetch statistics' });
+    }
+});
+
+// Recent Dreams Endpoint with Pagination
+app.get('/api/recent-dreams', authMiddleware, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        const { data: dreams, error, count } = await supabase
+            .from('dreams')
+            .select(`
+                id,
+                title,
+                created_at,
+                emotions,
+                profiles:user_id (
+                    username,
+                    first_name,
+                    avatar_url
+                )
+            `, { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
+
+        if (error) throw error;
+
+        const recentDreams = (dreams || []).map(dream => {
+            const displayName = dream.profiles
+                ? (dream.profiles.first_name || dream.profiles.username || 'Anonymous')
+                : 'Anonymous';
+            return {
+                id: dream.id,
+                title: dream.title || 'Untitled Dream',
+                created_at: dream.created_at,
+                emotion: Array.isArray(dream.emotions) && dream.emotions.length > 0 ? dream.emotions[0] : null,
+                user: {
+                    display_name: displayName,
+                    avatar_url: dream.profiles?.avatar_url || null
+                }
+            };
+        });
+
+        res.json({
+            dreams: recentDreams,
+            pagination: {
+                page,
+                limit,
+                total: count,
+                totalPages: Math.ceil(count / limit),
+                hasMore: offset + limit < count
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching recent dreams:', error);
+        res.status(500).json({ error: 'Failed to fetch recent dreams' });
     }
 });
 

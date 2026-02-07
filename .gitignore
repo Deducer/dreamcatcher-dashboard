@@ -2,3 +2,5 @@ node_modules
 .env
 .DS_Store
 seed-data.js
+supabase/.temp/
+package-lock.json

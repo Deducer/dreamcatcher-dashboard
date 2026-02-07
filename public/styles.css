@@ -114,6 +114,64 @@ body {
     color: var(--text-primary);
 }
 
+.nav-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* Time Filter */
+.time-filter {
+    display: flex;
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    gap: 4px;
+}
+
+.filter-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.filter-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+}
+
+.filter-btn.active {
+    background: var(--accent-primary);
+    color: white;
+}
+
+/* Period Indicator */
+.period-indicator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+}
+
+.period-indicator span:first-child {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.period-comparison {
+    color: var(--text-muted);
+}
+
 /* Metric Cards Grid */
 .metrics-grid {
     display: grid;
@@ -151,6 +209,14 @@ body {
 
 .metric-card:hover::before {
     opacity: 1;
+}
+
+.metric-card.highlight {
+    border-color: rgba(139, 92, 246, 0.2);
+}
+
+.metric-card.highlight::before {
+    opacity: 0.5;
 }
 
 .metric-label {
@@ -228,11 +294,54 @@ body {
     width: 100%;
 }
 
+.chart-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.chart-card-header .chart-title {
+    margin: 0;
+}
+
+.dream-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    padding: 4px 8px;
+    border-radius: 12px;
+}
+
 .chart-title {
     font-size: 1rem;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0 0 20px 0;
+}
+
+.load-more-btn {
+    width: 100%;
+    margin-top: 16px;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.load-more-btn:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border-color: var(--accent-primary);
+}
+
+.load-more-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .chart-wrapper {

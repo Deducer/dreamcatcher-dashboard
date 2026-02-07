@@ -1,5 +1,9 @@
 // Store chart instances to destroy before re-creating
 let charts = {};
+let currentRange = '30d';
+let dreamsPage = 1;
+let dreamsHasMore = true;
+let allDreams = [];
 
 // Helper Functions
 function timeAgo(dateString) {
@@ -36,6 +40,37 @@ function formatNumber(num) {
     return num.toString();
 }
 
+function getRangeLabel(range) {
+    switch (range) {
+        case '7d': return 'Last 7 days';
+        case '30d': return 'Last 30 days';
+        case '90d': return 'Last 90 days';
+        case 'all': return 'All time';
+        default: return 'Last 30 days';
+    }
+}
+
+function getComparisonLabel(range) {
+    switch (range) {
+        case '7d': return 'vs previous 7 days';
+        case '30d': return 'vs previous 30 days';
+        case '90d': return 'vs previous 90 days';
+        case 'all': return '';
+        default: return 'vs previous period';
+    }
+}
+
+function renderTrend(value, previousValue, suffix = '') {
+    if (previousValue === 0 || previousValue === undefined) {
+        return `<span class="trend trend-neutral">${value}${suffix}</span>`;
+    }
+    const change = ((value - previousValue) / previousValue) * 100;
+    const isUp = change >= 0;
+    const icon = isUp ? '&#9650;' : '&#9660;';
+    const trendClass = isUp ? 'trend-up' : 'trend-down';
+    return `<span class="trend ${trendClass}">${icon} ${Math.abs(change).toFixed(1)}% vs ${previousValue}${suffix}</span>`;
+}
+
 // Auth Functions
 async function checkAuth() {
     try {
@@ -59,7 +94,9 @@ function showLogin() {
 function showDashboard() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('dashboard-screen').style.display = 'block';
+    initTimeFilter();
     loadData();
+    loadRecentDreams(true);
 }
 
 async function login() {
@@ -83,20 +120,42 @@ async function logout() {
     location.reload();
 }
 
+// Time Filter
+function initTimeFilter() {
+    const buttons = document.querySelectorAll('.filter-btn');
+    buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            buttons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentRange = btn.dataset.range;
+            updatePeriodIndicator();
+            loadData();
+        });
+    });
+
+    // Initialize load more button
+    document.getElementById('load-more-btn').addEventListener('click', () => {
+        loadRecentDreams(false);
+    });
+}
+
+function updatePeriodIndicator() {
+    document.getElementById('period-label').textContent = getRangeLabel(currentRange);
+    const comparison = getComparisonLabel(currentRange);
+    document.getElementById('period-comparison').textContent = comparison;
+    document.getElementById('period-comparison').style.display = comparison ? 'inline' : 'none';
+}
+
 // Data Loading
 async function loadData() {
     try {
-        const response = await fetch('/api/stats');
+        const response = await fetch(`/api/stats?range=${currentRange}`);
         const data = await response.json();
 
-        // Update Overview Metrics
         updateOverviewMetrics(data.overview);
-
-        // Render Charts
-        renderGrowthChart(data.timeSeries.dreams30Days);
-        renderAcquisitionChart(data.timeSeries.users30Days);
+        renderGrowthChart(data.timeSeries.dreams);
+        renderAcquisitionChart(data.timeSeries.users);
         renderRetentionChart(data.retention);
-        renderRecentDreams(data.recentDreams);
         renderEmotionChart(data.emotions);
         renderTagsChart(data.tags);
         renderMethodsChart(data.recording_methods);
@@ -107,39 +166,63 @@ async function loadData() {
     }
 }
 
+async function loadRecentDreams(reset = false) {
+    if (reset) {
+        dreamsPage = 1;
+        allDreams = [];
+        document.getElementById('recent-dreams-list').innerHTML = '<div class="loading">Loading recent dreams</div>';
+    }
+
+    try {
+        const response = await fetch(`/api/recent-dreams?page=${dreamsPage}&limit=10`);
+        const data = await response.json();
+
+        allDreams = reset ? data.dreams : [...allDreams, ...data.dreams];
+        dreamsHasMore = data.pagination.hasMore;
+        dreamsPage++;
+
+        renderRecentDreams(allDreams);
+
+        // Update count and load more button
+        document.getElementById('dream-count').textContent = `${data.pagination.total} total`;
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        loadMoreBtn.style.display = dreamsHasMore ? 'block' : 'none';
+        loadMoreBtn.disabled = false;
+        loadMoreBtn.textContent = 'Load More';
+
+    } catch (e) {
+        console.error("Failed to load recent dreams", e);
+    }
+}
+
 function updateOverviewMetrics(overview) {
-    // Total Dreams
+    // All-time metrics
     document.getElementById('total-dreams').textContent = formatNumber(overview.totalDreams);
-    document.getElementById('dreams-week-info').innerHTML =
-        `<span class="${overview.dreamsThisWeek > overview.dreamsLastWeek ? 'trend trend-up' : 'trend trend-down'}">
-            ${overview.dreamsThisWeek > overview.dreamsLastWeek ? '&#9650;' : '&#9660;'} ${overview.dreamsThisWeek} this week
-        </span>`;
-
-    // Total Users
     document.getElementById('total-users').textContent = formatNumber(overview.totalUsers);
-    document.getElementById('users-week-info').innerHTML =
-        overview.newUsersThisWeek > 0
-            ? `<span class="trend trend-up">&#9650; ${overview.newUsersThisWeek} new this week</span>`
-            : `<span class="trend trend-neutral">No new users this week</span>`;
-
-    // Avg Dreams per User
     document.getElementById('avg-dreams').textContent = overview.avgDreamsPerUser.toFixed(1);
+    document.getElementById('conversion-rate').textContent = overview.conversionRate + '%';
 
-    // Active Users
-    document.getElementById('active-users').textContent = formatNumber(overview.activeUsers7Days);
+    // Period metrics with trends
+    document.getElementById('dreams-period').textContent = formatNumber(overview.dreamsInPeriod);
+    document.getElementById('dreams-period-change').innerHTML = renderTrend(
+        overview.dreamsInPeriod,
+        overview.prevDreamsCount
+    );
 
-    // Weekly Growth
-    const growthPercent = overview.weeklyGrowthPercent;
-    const growthEl = document.getElementById('weekly-growth');
-    const growthClass = growthPercent >= 0 ? 'trend-up' : 'trend-down';
-    const growthIcon = growthPercent >= 0 ? '&#9650;' : '&#9660;';
-    growthEl.innerHTML = `<span class="trend ${growthClass}" style="font-size: 1.5rem;">${growthIcon} ${Math.abs(growthPercent).toFixed(1)}%</span>`;
+    document.getElementById('new-users').textContent = formatNumber(overview.newUsersInPeriod);
+    document.getElementById('new-users-change').innerHTML = renderTrend(
+        overview.newUsersInPeriod,
+        overview.prevNewUsers
+    );
 
-    document.getElementById('growth-comparison').textContent =
-        `${overview.dreamsThisWeek} vs ${overview.dreamsLastWeek} last week`;
+    document.getElementById('active-users').textContent = formatNumber(overview.activeUsersInPeriod);
+    document.getElementById('active-users-change').innerHTML = renderTrend(
+        overview.activeUsersInPeriod,
+        overview.prevActiveUsers
+    );
 
-    // Dreams This Week
-    document.getElementById('dreams-this-week').textContent = formatNumber(overview.dreamsThisWeek);
+    document.getElementById('first-time-dreamers').textContent = formatNumber(overview.firstTimeDreamers);
+    document.getElementById('returning-users').textContent = formatNumber(overview.returningUsers);
 }
 
 // Chart Rendering Functions
@@ -162,7 +245,7 @@ function renderGrowthChart(timeSeries) {
                 backgroundColor: gradient,
                 fill: true,
                 tension: 0.4,
-                pointRadius: 0,
+                pointRadius: timeSeries.length > 60 ? 0 : 2,
                 pointHoverRadius: 6,
                 pointHoverBackgroundColor: '#8b5cf6',
                 borderWidth: 2
@@ -186,7 +269,11 @@ function renderGrowthChart(timeSeries) {
             scales: {
                 x: {
                     grid: { display: false },
-                    ticks: { color: '#737373', maxTicksLimit: 10 }
+                    ticks: {
+                        color: '#737373',
+                        maxTicksLimit: timeSeries.length > 60 ? 6 : 10,
+                        maxRotation: 0
+                    }
                 },
                 y: {
                     grid: { color: 'rgba(255,255,255,0.05)' },
@@ -237,7 +324,11 @@ function renderAcquisitionChart(timeSeries) {
             scales: {
                 x: {
                     grid: { display: false },
-                    ticks: { color: '#737373', maxTicksLimit: 10 }
+                    ticks: {
+                        color: '#737373',
+                        maxTicksLimit: timeSeries.length > 60 ? 6 : 10,
+                        maxRotation: 0
+                    }
                 },
                 y: {
                     grid: { color: 'rgba(255,255,255,0.05)' },

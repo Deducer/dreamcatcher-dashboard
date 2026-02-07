@@ -38,42 +38,75 @@
         <nav class="nav">
             <div class="nav-content">
                 <div class="nav-title">DreamCatcher Analytics</div>
-                <button onclick="logout()" class="btn-logout">Logout</button>
+                <div class="nav-controls">
+                    <div class="time-filter">
+                        <button class="filter-btn" data-range="7d">7D</button>
+                        <button class="filter-btn active" data-range="30d">30D</button>
+                        <button class="filter-btn" data-range="90d">90D</button>
+                        <button class="filter-btn" data-range="all">All</button>
+                    </div>
+                    <button onclick="logout()" class="btn-logout">Logout</button>
+                </div>
             </div>
         </nav>
 
         <div class="container">
-            <!-- Key Metrics Grid -->
+            <!-- Period indicator -->
+            <div class="period-indicator">
+                <span id="period-label">Last 30 days</span>
+                <span id="period-comparison" class="period-comparison">vs previous 30 days</span>
+            </div>
+
+            <!-- Key Metrics Grid - Row 1: Totals -->
             <div class="metrics-grid">
                 <div class="metric-card">
                     <div class="metric-label">Total Dreams</div>
                     <div class="metric-value" id="total-dreams">-</div>
-                    <div class="metric-subtext" id="dreams-week-info">Loading...</div>
+                    <div class="metric-subtext">All time</div>
                 </div>
                 <div class="metric-card">
                     <div class="metric-label">Total Users</div>
                     <div class="metric-value" id="total-users">-</div>
-                    <div class="metric-subtext" id="users-week-info">Loading...</div>
+                    <div class="metric-subtext">All time</div>
                 </div>
                 <div class="metric-card">
                     <div class="metric-label">Avg Dreams/User</div>
                     <div class="metric-value" id="avg-dreams">-</div>
-                    <div class="metric-subtext">Engagement metric</div>
+                    <div class="metric-subtext">Engagement</div>
                 </div>
                 <div class="metric-card">
+                    <div class="metric-label">Conversion Rate</div>
+                    <div class="metric-value" id="conversion-rate">-</div>
+                    <div class="metric-subtext">Signup to first dream</div>
+                </div>
+            </div>
+
+            <!-- Key Metrics Grid - Row 2: Period Metrics -->
+            <div class="metrics-grid">
+                <div class="metric-card highlight">
+                    <div class="metric-label">Dreams in Period</div>
+                    <div class="metric-value" id="dreams-period">-</div>
+                    <div class="metric-subtext" id="dreams-period-change">-</div>
+                </div>
+                <div class="metric-card highlight">
+                    <div class="metric-label">New Users</div>
+                    <div class="metric-value" id="new-users">-</div>
+                    <div class="metric-subtext" id="new-users-change">-</div>
+                </div>
+                <div class="metric-card highlight">
                     <div class="metric-label">Active Users</div>
                     <div class="metric-value" id="active-users">-</div>
-                    <div class="metric-subtext">Last 7 days</div>
+                    <div class="metric-subtext" id="active-users-change">-</div>
                 </div>
                 <div class="metric-card">
-                    <div class="metric-label">Weekly Growth</div>
-                    <div class="metric-value" id="weekly-growth">-</div>
-                    <div class="metric-subtext" id="growth-comparison">vs last week</div>
+                    <div class="metric-label">First-Time Dreamers</div>
+                    <div class="metric-value" id="first-time-dreamers">-</div>
+                    <div class="metric-subtext">New dream loggers</div>
                 </div>
                 <div class="metric-card">
-                    <div class="metric-label">This Week</div>
-                    <div class="metric-value" id="dreams-this-week">-</div>
-                    <div class="metric-subtext">Dreams recorded</div>
+                    <div class="metric-label">Returning Users</div>
+                    <div class="metric-value" id="returning-users">-</div>
+                    <div class="metric-subtext">Came back to log</div>
                 </div>
             </div>
 
@@ -81,13 +114,13 @@
             <div class="charts-section">
                 <h2 class="section-header">Growth Trends</h2>
                 <div class="chart-card chart-card-full">
-                    <h3 class="chart-title">Dreams Over Last 30 Days</h3>
+                    <h3 class="chart-title">Dreams Over Time</h3>
                     <div class="chart-wrapper chart-wrapper-large">
                         <canvas id="growthChart"></canvas>
                     </div>
                 </div>
                 <div class="chart-card chart-card-full">
-                    <h3 class="chart-title">New Users Over Last 30 Days</h3>
+                    <h3 class="chart-title">New User Signups</h3>
                     <div class="chart-wrapper">
                         <canvas id="acquisitionChart"></canvas>
                     </div>
@@ -97,10 +130,16 @@
             <!-- Activity & Retention Section -->
             <div class="two-column">
                 <div class="chart-card">
-                    <h3 class="chart-title">Recent Dreams</h3>
+                    <div class="chart-card-header">
+                        <h3 class="chart-title">Recent Dreams</h3>
+                        <span class="dream-count" id="dream-count"></span>
+                    </div>
                     <div id="recent-dreams-list" class="recent-dreams-list">
                         <div class="loading">Loading recent dreams</div>
                     </div>
+                    <button id="load-more-btn" class="load-more-btn" style="display: none;">
+                        Load More
+                    </button>
                 </div>
                 <div class="chart-card">
                     <h3 class="chart-title">User Retention</h3>
