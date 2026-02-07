@@ -22,7 +22,7 @@ console.log('SUPABASE_SERVICE_KEY set:', !!supabaseKey, supabaseKey ? `(${supaba
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Helper functions
-function getDateRange(range) {
+function getDateRange(range, earliestDate = null) {
     const now = new Date();
     const end = now;
     let start, prevStart, prevEnd;
@@ -50,7 +50,11 @@ function getDateRange(range) {
             prevStart.setDate(prevStart.getDate() - 90);
             break;
         case 'all':
-            start = new Date('2020-01-01'); // Beginning of time for the app
+            // Use earliest data date or default to 1 year ago
+            start = earliestDate ? new Date(earliestDate) : new Date(now);
+            if (!earliestDate) {
+                start.setFullYear(start.getFullYear() - 1);
+            }
             prevStart = null;
             prevEnd = null;
             break;
@@ -175,7 +179,26 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/stats', authMiddleware, async (req, res) => {
     try {
         const range = req.query.range || '30d';
-        const { start, end, prevStart, prevEnd, days } = getDateRange(range);
+
+        // For "all" range, find the earliest data point first
+        let earliestDate = null;
+        if (range === 'all') {
+            const [earliestProfile, earliestDream] = await Promise.all([
+                supabase.from('profiles').select('created_at').order('created_at', { ascending: true }).limit(1),
+                supabase.from('dreams').select('created_at').order('created_at', { ascending: true }).limit(1)
+            ]);
+
+            const dates = [
+                earliestProfile.data?.[0]?.created_at,
+                earliestDream.data?.[0]?.created_at
+            ].filter(Boolean).map(d => new Date(d));
+
+            if (dates.length > 0) {
+                earliestDate = new Date(Math.min(...dates));
+            }
+        }
+
+        const { start, end, prevStart, prevEnd, days } = getDateRange(range, earliestDate);
 
         // Fetch all data in parallel
         const queries = [
