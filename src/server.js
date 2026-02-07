@@ -15,6 +15,11 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+
+// Debug: Check if env vars are loaded
+console.log('SUPABASE_URL set:', !!supabaseUrl, supabaseUrl ? `(${supabaseUrl.substring(0, 20)}...)` : '');
+console.log('SUPABASE_SERVICE_KEY set:', !!supabaseKey, supabaseKey ? `(${supabaseKey.length} chars)` : '');
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Auth Middleware
