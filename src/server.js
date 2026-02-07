@@ -162,7 +162,12 @@ const authMiddleware = (req, res, next) => {
 app.post('/api/login', (req, res) => {
     const { password } = req.body;
     if (password === process.env.DASHBOARD_PASSWORD) {
-        res.cookie('dashboard_auth', password, { httpOnly: true, maxAge: 24 * 60 * 60 * 1000 });
+        res.cookie('dashboard_auth', password, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000
+        });
         res.json({ success: true });
     } else {
         res.status(401).json({ error: 'Invalid password' });
