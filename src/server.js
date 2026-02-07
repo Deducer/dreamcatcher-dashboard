@@ -22,6 +22,37 @@ console.log('SUPABASE_SERVICE_KEY set:', !!supabaseKey, supabaseKey ? `(${supaba
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Helper functions
+function getStartOfWeek(date = new Date()) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day;
+    d.setDate(diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function groupByDate(items, dateField = 'created_at') {
+    const grouped = {};
+    items.forEach(item => {
+        const date = new Date(item[dateField]).toISOString().split('T')[0];
+        grouped[date] = (grouped[date] || 0) + 1;
+    });
+    return grouped;
+}
+
+function getLast30DaysArray(groupedData) {
+    const result = [];
+    const today = new Date();
+    for (let i = 29; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        result.push({ date: dateStr, count: groupedData[dateStr] || 0 });
+    }
+    return result;
+}
+
 // Auth Middleware
 const authMiddleware = (req, res, next) => {
     const authCookie = req.cookies.dashboard_auth;
@@ -54,32 +85,170 @@ app.post('/api/logout', (req, res) => {
 // Data Endpoints (Protected)
 app.get('/api/stats', authMiddleware, async (req, res) => {
     try {
-        // Fetch data from Supabase
-        // Usage of existing RPC function
-        const { data: stats, error: statsError } = await supabase.rpc('get_dream_statistics');
-        
-        if (statsError) throw statsError;
+        const now = new Date();
+        const weekStart = getStartOfWeek();
+        const lastWeekStart = new Date(weekStart);
+        lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+        const thirtyDaysAgo = new Date(now);
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const sevenDaysAgo = new Date(now);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-        // Fetch additional data not covered by RPC if needed
-        const { count: totalUsers, error: usersError } = await supabase
-            .from('profiles')
-            .select('*', { count: 'exact', head: true });
+        // Fetch all data in parallel for performance
+        const [
+            statsResult,
+            totalUsersResult,
+            totalDreamsResult,
+            activeUsersResult,
+            dreamsThisWeekResult,
+            dreamsLastWeekResult,
+            newUsersThisWeekResult,
+            dreams30DaysResult,
+            users30DaysResult,
+            recentDreamsResult,
+            retentionResult
+        ] = await Promise.all([
+            // Existing RPC for emotions, tags, etc.
+            supabase.rpc('get_dream_statistics'),
 
-        if (usersError) throw usersError;
+            // Total users
+            supabase.from('profiles').select('*', { count: 'exact', head: true }),
 
-        const { count: totalDreams, error: dreamsError } = await supabase
-            .from('dreams')
-            .select('*', { count: 'exact', head: true });
-            
-        if (dreamsError) throw dreamsError;
+            // Total dreams
+            supabase.from('dreams').select('*', { count: 'exact', head: true }),
 
-        // Combine data
+            // Active users (last 7 days)
+            supabase.from('dreams')
+                .select('user_id')
+                .gte('created_at', sevenDaysAgo.toISOString()),
+
+            // Dreams this week
+            supabase.from('dreams')
+                .select('*', { count: 'exact', head: true })
+                .gte('created_at', weekStart.toISOString()),
+
+            // Dreams last week
+            supabase.from('dreams')
+                .select('*', { count: 'exact', head: true })
+                .gte('created_at', lastWeekStart.toISOString())
+                .lt('created_at', weekStart.toISOString()),
+
+            // New users this week
+            supabase.from('profiles')
+                .select('*', { count: 'exact', head: true })
+                .gte('created_at', weekStart.toISOString()),
+
+            // Dreams last 30 days (for time series)
+            supabase.from('dreams')
+                .select('created_at')
+                .gte('created_at', thirtyDaysAgo.toISOString()),
+
+            // Users last 30 days (for time series)
+            supabase.from('profiles')
+                .select('created_at')
+                .gte('created_at', thirtyDaysAgo.toISOString()),
+
+            // Recent dreams with user info
+            supabase.from('dreams')
+                .select(`
+                    id,
+                    title,
+                    created_at,
+                    emotions,
+                    profiles:user_id (
+                        display_name,
+                        avatar_url
+                    )
+                `)
+                .order('created_at', { ascending: false })
+                .limit(10),
+
+            // User retention buckets - count dreams per user
+            supabase.from('dreams')
+                .select('user_id')
+        ]);
+
+        // Process results
+        const stats = statsResult.data || {};
+        const totalUsers = totalUsersResult.count || 0;
+        const totalDreams = totalDreamsResult.count || 0;
+
+        // Active users - count unique user_ids
+        const activeUserIds = new Set((activeUsersResult.data || []).map(d => d.user_id));
+        const activeUsers7Days = activeUserIds.size;
+
+        const dreamsThisWeek = dreamsThisWeekResult.count || 0;
+        const dreamsLastWeek = dreamsLastWeekResult.count || 0;
+        const newUsersThisWeek = newUsersThisWeekResult.count || 0;
+
+        // Calculate weekly growth percentage
+        const weeklyGrowthPercent = dreamsLastWeek > 0
+            ? ((dreamsThisWeek - dreamsLastWeek) / dreamsLastWeek) * 100
+            : 0;
+
+        // Average dreams per user
+        const avgDreamsPerUser = totalUsers > 0 ? totalDreams / totalUsers : 0;
+
+        // Time series data
+        const dreamsGrouped = groupByDate(dreams30DaysResult.data || []);
+        const usersGrouped = groupByDate(users30DaysResult.data || []);
+        const dreams30Days = getLast30DaysArray(dreamsGrouped);
+        const users30Days = getLast30DaysArray(usersGrouped);
+
+        // Process recent dreams
+        const recentDreams = (recentDreamsResult.data || []).map(dream => ({
+            id: dream.id,
+            title: dream.title || 'Untitled Dream',
+            created_at: dream.created_at,
+            emotion: Array.isArray(dream.emotions) && dream.emotions.length > 0 ? dream.emotions[0] : null,
+            user: dream.profiles ? {
+                display_name: dream.profiles.display_name || 'Anonymous',
+                avatar_url: dream.profiles.avatar_url
+            } : { display_name: 'Anonymous', avatar_url: null }
+        }));
+
+        // Calculate retention buckets
+        const userDreamCounts = {};
+        (retentionResult.data || []).forEach(d => {
+            userDreamCounts[d.user_id] = (userDreamCounts[d.user_id] || 0) + 1;
+        });
+
+        const retention = {
+            '1 dream': 0,
+            '2-5 dreams': 0,
+            '6-10 dreams': 0,
+            '10+ dreams': 0
+        };
+
+        Object.values(userDreamCounts).forEach(count => {
+            if (count === 1) retention['1 dream']++;
+            else if (count <= 5) retention['2-5 dreams']++;
+            else if (count <= 10) retention['6-10 dreams']++;
+            else retention['10+ dreams']++;
+        });
+
+        // Combine all data
         const dashboardData = {
-            ...stats,
             overview: {
+                totalDreams,
                 totalUsers,
-                totalDreams
-            }
+                avgDreamsPerUser: Math.round(avgDreamsPerUser * 100) / 100,
+                activeUsers7Days,
+                dreamsThisWeek,
+                dreamsLastWeek,
+                weeklyGrowthPercent: Math.round(weeklyGrowthPercent * 10) / 10,
+                newUsersThisWeek
+            },
+            timeSeries: {
+                dreams30Days,
+                users30Days
+            },
+            recentDreams,
+            retention,
+            emotions: stats.emotions || {},
+            tags: stats.tags || {},
+            recording_methods: stats.recording_methods || {},
+            day_of_week: stats.day_of_week || {}
         };
 
         res.json(dashboardData);
