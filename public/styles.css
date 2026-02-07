@@ -81,16 +81,13 @@ body {
     color: var(--text-primary);
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
 }
 
-.nav-title::before {
-    content: '';
-    width: 8px;
-    height: 8px;
-    background: var(--accent-primary);
-    border-radius: 50%;
-    animation: pulse 2s infinite;
+.nav-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
 }
 
 @keyframes pulse {

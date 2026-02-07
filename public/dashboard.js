@@ -406,18 +406,11 @@ function renderRecentDreams(dreams) {
 
     container.innerHTML = dreams.map(dream => `
         <div class="dream-item">
-            <div class="dream-avatar">
-                ${dream.user.avatar_url
-                    ? `<img src="${escapeHtml(dream.user.avatar_url)}" alt="">`
-                    : getInitials(dream.user.display_name)
-                }
-            </div>
-            <div class="dream-content">
+            <div class="dream-content" style="flex: 1;">
                 <div class="dream-title">${escapeHtml(dream.title)}</div>
                 <div class="dream-meta">
                     ${dream.emotion ? `<span class="dream-emotion">${escapeHtml(dream.emotion)}</span>` : ''}
                     <span>${timeAgo(dream.created_at)}</span>
-                    <span>${escapeHtml(dream.user.display_name)}</span>
                 </div>
             </div>
         </div>

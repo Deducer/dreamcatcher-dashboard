@@ -345,37 +345,18 @@ app.get('/api/recent-dreams', authMiddleware, async (req, res) => {
 
         const { data: dreams, error, count } = await supabase
             .from('dreams')
-            .select(`
-                id,
-                title,
-                created_at,
-                emotions,
-                profiles:user_id (
-                    username,
-                    first_name,
-                    avatar_url
-                )
-            `, { count: 'exact' })
+            .select('id, title, created_at, emotions', { count: 'exact' })
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
 
         if (error) throw error;
 
-        const recentDreams = (dreams || []).map(dream => {
-            const displayName = dream.profiles
-                ? (dream.profiles.first_name || dream.profiles.username || 'Anonymous')
-                : 'Anonymous';
-            return {
-                id: dream.id,
-                title: dream.title || 'Untitled Dream',
-                created_at: dream.created_at,
-                emotion: Array.isArray(dream.emotions) && dream.emotions.length > 0 ? dream.emotions[0] : null,
-                user: {
-                    display_name: displayName,
-                    avatar_url: dream.profiles?.avatar_url || null
-                }
-            };
-        });
+        const recentDreams = (dreams || []).map(dream => ({
+            id: dream.id,
+            title: dream.title || 'Untitled Dream',
+            created_at: dream.created_at,
+            emotion: Array.isArray(dream.emotions) && dream.emotions.length > 0 ? dream.emotions[0] : null
+        }));
 
         res.json({
             dreams: recentDreams,
