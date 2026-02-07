@@ -156,7 +156,8 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
                     created_at,
                     emotions,
                     profiles:user_id (
-                        display_name,
+                        username,
+                        first_name,
                         avatar_url
                     )
                 `)
@@ -196,16 +197,21 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
         const users30Days = getLast30DaysArray(usersGrouped);
 
         // Process recent dreams
-        const recentDreams = (recentDreamsResult.data || []).map(dream => ({
-            id: dream.id,
-            title: dream.title || 'Untitled Dream',
-            created_at: dream.created_at,
-            emotion: Array.isArray(dream.emotions) && dream.emotions.length > 0 ? dream.emotions[0] : null,
-            user: dream.profiles ? {
-                display_name: dream.profiles.display_name || 'Anonymous',
-                avatar_url: dream.profiles.avatar_url
-            } : { display_name: 'Anonymous', avatar_url: null }
-        }));
+        const recentDreams = (recentDreamsResult.data || []).map(dream => {
+            const displayName = dream.profiles
+                ? (dream.profiles.first_name || dream.profiles.username || 'Anonymous')
+                : 'Anonymous';
+            return {
+                id: dream.id,
+                title: dream.title || 'Untitled Dream',
+                created_at: dream.created_at,
+                emotion: Array.isArray(dream.emotions) && dream.emotions.length > 0 ? dream.emotions[0] : null,
+                user: {
+                    display_name: displayName,
+                    avatar_url: dream.profiles?.avatar_url || null
+                }
+            };
+        });
 
         // Calculate retention buckets
         const userDreamCounts = {};
