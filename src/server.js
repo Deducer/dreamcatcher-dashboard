@@ -74,17 +74,71 @@ function groupByDate(items, dateField = 'created_at') {
     return grouped;
 }
 
-function getTimeSeriesArray(groupedData, days) {
+function getTimeSeriesArray(groupedData, days, aggregation = 'day') {
     const result = [];
     const today = new Date();
     const numDays = days || 30;
 
-    for (let i = numDays - 1; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        result.push({ date: dateStr, count: groupedData[dateStr] || 0 });
+    if (aggregation === 'day') {
+        for (let i = numDays - 1; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dateStr = date.toISOString().split('T')[0];
+            result.push({ date: dateStr, count: groupedData[dateStr] || 0 });
+        }
+    } else if (aggregation === 'week') {
+        // Group by week
+        const numWeeks = Math.ceil(numDays / 7);
+        for (let i = numWeeks - 1; i >= 0; i--) {
+            const weekEnd = new Date(today);
+            weekEnd.setDate(weekEnd.getDate() - (i * 7));
+            const weekStart = new Date(weekEnd);
+            weekStart.setDate(weekStart.getDate() - 6);
+
+            let weekCount = 0;
+            for (let d = 0; d < 7; d++) {
+                const date = new Date(weekStart);
+                date.setDate(date.getDate() + d);
+                const dateStr = date.toISOString().split('T')[0];
+                weekCount += groupedData[dateStr] || 0;
+            }
+
+            const label = weekStart.toISOString().split('T')[0];
+            result.push({ date: label, count: weekCount });
+        }
+    } else if (aggregation === 'month') {
+        // Group by month
+        const startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - numDays);
+
+        const months = [];
+        let current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        const endMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+        while (current <= endMonth) {
+            months.push(new Date(current));
+            current.setMonth(current.getMonth() + 1);
+        }
+
+        months.forEach(monthStart => {
+            const monthEnd = new Date(monthStart);
+            monthEnd.setMonth(monthEnd.getMonth() + 1);
+
+            let monthCount = 0;
+            const d = new Date(monthStart);
+            while (d < monthEnd) {
+                const dateStr = d.toISOString().split('T')[0];
+                monthCount += groupedData[dateStr] || 0;
+                d.setDate(d.getDate() + 1);
+            }
+
+            result.push({
+                date: monthStart.toISOString().split('T')[0],
+                count: monthCount
+            });
+        });
     }
+
     return result;
 }
 
@@ -273,8 +327,17 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
         const dreamsGrouped = groupByDate(periodDreams);
         const usersGrouped = groupByDate(periodUsers);
         const chartDays = days || Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-        const dreamsTimeSeries = getTimeSeriesArray(dreamsGrouped, Math.min(chartDays, 90));
-        const usersTimeSeries = getTimeSeriesArray(usersGrouped, Math.min(chartDays, 90));
+
+        // Choose aggregation based on time range
+        let aggregation = 'day';
+        if (chartDays > 180) {
+            aggregation = 'month';
+        } else if (chartDays > 60) {
+            aggregation = 'week';
+        }
+
+        const dreamsTimeSeries = getTimeSeriesArray(dreamsGrouped, chartDays, aggregation);
+        const usersTimeSeries = getTimeSeriesArray(usersGrouped, chartDays, aggregation);
 
         // Retention buckets
         const userDreamCounts = {};
@@ -320,7 +383,8 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
             },
             timeSeries: {
                 dreams: dreamsTimeSeries,
-                users: usersTimeSeries
+                users: usersTimeSeries,
+                aggregation: aggregation
             },
             retention,
             emotions: stats.emotions || {},

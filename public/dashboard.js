@@ -18,8 +18,13 @@ function timeAgo(dateString) {
     return date.toLocaleDateString();
 }
 
-function formatDate(dateString) {
+function formatDate(dateString, aggregation = 'day') {
     const date = new Date(dateString);
+    if (aggregation === 'month') {
+        return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    } else if (aggregation === 'week') {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
@@ -152,9 +157,11 @@ async function loadData() {
         const response = await fetch(`/api/stats?range=${currentRange}`);
         const data = await response.json();
 
+        const aggregation = data.timeSeries.aggregation || 'day';
+
         updateOverviewMetrics(data.overview);
-        renderGrowthChart(data.timeSeries.dreams);
-        renderAcquisitionChart(data.timeSeries.users);
+        renderGrowthChart(data.timeSeries.dreams, aggregation);
+        renderAcquisitionChart(data.timeSeries.users, aggregation);
         renderRetentionChart(data.retention);
         renderEmotionChart(data.emotions);
         renderTagsChart(data.tags);
@@ -226,7 +233,7 @@ function updateOverviewMetrics(overview) {
 }
 
 // Chart Rendering Functions
-function renderGrowthChart(timeSeries) {
+function renderGrowthChart(timeSeries, aggregation = 'day') {
     if (charts.growth) charts.growth.destroy();
 
     const ctx = document.getElementById('growthChart').getContext('2d');
@@ -234,10 +241,12 @@ function renderGrowthChart(timeSeries) {
     gradient.addColorStop(0, 'rgba(139, 92, 246, 0.3)');
     gradient.addColorStop(1, 'rgba(139, 92, 246, 0)');
 
+    const labelSuffix = aggregation === 'month' ? ' (monthly)' : aggregation === 'week' ? ' (weekly)' : '';
+
     charts.growth = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: timeSeries.map(d => formatDate(d.date)),
+            labels: timeSeries.map(d => formatDate(d.date, aggregation)),
             datasets: [{
                 label: 'Dreams',
                 data: timeSeries.map(d => d.count),
@@ -289,7 +298,7 @@ function renderGrowthChart(timeSeries) {
     });
 }
 
-function renderAcquisitionChart(timeSeries) {
+function renderAcquisitionChart(timeSeries, aggregation = 'day') {
     if (charts.acquisition) charts.acquisition.destroy();
 
     const ctx = document.getElementById('acquisitionChart').getContext('2d');
@@ -297,7 +306,7 @@ function renderAcquisitionChart(timeSeries) {
     charts.acquisition = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: timeSeries.map(d => formatDate(d.date)),
+            labels: timeSeries.map(d => formatDate(d.date, aggregation)),
             datasets: [{
                 label: 'New Users',
                 data: timeSeries.map(d => d.count),
