@@ -208,14 +208,6 @@ body {
     opacity: 1;
 }
 
-.metric-card.highlight {
-    border-color: rgba(139, 92, 246, 0.2);
-}
-
-.metric-card.highlight::before {
-    opacity: 0.5;
-}
-
 .metric-label {
     font-size: 0.75rem;
     font-weight: 600;
