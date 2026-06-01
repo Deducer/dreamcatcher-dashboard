@@ -3,4 +3,3 @@ node_modules
 .DS_Store
 seed-data.js
 supabase/.temp/
-package-lock.json
