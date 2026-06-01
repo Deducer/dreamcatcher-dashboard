@@ -6,7 +6,7 @@ let dreamsHasMore = true;
 let allDreams = [];
 
 // Email-level drill-down state
-let statsDetails = { firstTimeDreamers: [], returningUsers: [] };
+let statsDetails = { firstTimeDreamers: [], returningUsers: [], activeUsers: [], newUsers: [] };
 let excludedAccountsCache = null;
 let detailViewsInitialized = false;
 
@@ -166,7 +166,7 @@ async function loadData() {
 
         const aggregation = data.timeSeries.aggregation || 'day';
 
-        statsDetails = data.details || { firstTimeDreamers: [], returningUsers: [] };
+        statsDetails = data.details || { firstTimeDreamers: [], returningUsers: [], activeUsers: [], newUsers: [] };
         updateOverviewMetrics(data.overview);
         renderGrowthChart(data.timeSeries.dreams, aggregation);
         renderAcquisitionChart(data.timeSeries.users, aggregation);
@@ -263,6 +263,24 @@ function initDetailViews() {
             `${getRangeLabel(currentRange)} — dreamed before this period and came back`,
             emailRows(statsDetails.returningUsers),
             statsDetails.returningUsers.length
+        );
+    });
+
+    document.getElementById('card-new').addEventListener('click', () => {
+        openDetailModal(
+            'New Users',
+            `${getRangeLabel(currentRange)} — accounts created in this period`,
+            emailRows(statsDetails.newUsers),
+            (statsDetails.newUsers || []).length
+        );
+    });
+
+    document.getElementById('card-active').addEventListener('click', () => {
+        openDetailModal(
+            'Active Users',
+            `${getRangeLabel(currentRange)} — logged at least one dream in this period`,
+            emailRows(statsDetails.activeUsers),
+            (statsDetails.activeUsers || []).length
         );
     });
 

@@ -6,7 +6,11 @@ FROM node:22-alpine
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --production
+# npm ci (not npm install): installs the exact versions pinned in
+# package-lock.json so a transitive dependency can't silently drift on
+# rebuild and break the deploy (which is how the Node-20/WebSocket crash got
+# introduced). Lockfile changes must be committed for this to pick them up.
+RUN npm ci --omit=dev
 
 COPY . .
 

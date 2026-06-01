@@ -451,7 +451,9 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
             range,
             details: {
                 firstTimeDreamers: toEmailList(firstTimeDreamerIds),
-                returningUsers: toEmailList(returningUserIds)
+                returningUsers: toEmailList(returningUserIds),
+                activeUsers: toEmailList([...activeUserIds]),
+                newUsers: toEmailList(periodUsers.map(u => u.id))
             },
             overview: {
                 totalDreams,

@@ -625,6 +625,22 @@ body {
     text-decoration: underline;
 }
 
+/* Standalone "View emails" link line (cards whose subtext shows a trend) */
+.metric-link {
+    margin-top: 8px;
+    font-size: 0.8125rem;
+}
+
+.metric-link span {
+    color: var(--accent-secondary);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.metric-card-clickable:hover .metric-link span {
+    text-decoration: underline;
+}
+
 /* Modal overlay */
 .detail-overlay {
     position: fixed;
