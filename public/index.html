@@ -60,6 +60,9 @@
             <div class="period-indicator">
                 <span id="period-label">Last 30 days</span>
                 <span id="period-comparison" class="period-comparison">vs previous 30 days</span>
+                <button id="excluded-chip" class="excluded-chip" title="Internal accounts filtered out of every metric (display-only)">
+                    &#8856; <span id="excluded-chip-count">&mdash;</span> accounts excluded
+                </button>
             </div>
 
             <!-- Key Metrics Grid - Row 1: Totals -->
@@ -103,15 +106,15 @@
                     <div class="metric-value" id="active-users">-</div>
                     <div class="metric-subtext" id="active-users-change">-</div>
                 </div>
-                <div class="metric-card">
+                <div class="metric-card metric-card-clickable" id="card-first-time">
                     <div class="metric-label">First-Time Dreamers</div>
                     <div class="metric-value" id="first-time-dreamers">-</div>
-                    <div class="metric-subtext">New dream loggers</div>
+                    <div class="metric-subtext metric-subtext-link">New dream loggers &middot; <span>View emails &rarr;</span></div>
                 </div>
-                <div class="metric-card">
+                <div class="metric-card metric-card-clickable" id="card-returning">
                     <div class="metric-label">Returning Users</div>
                     <div class="metric-value" id="returning-users">-</div>
-                    <div class="metric-subtext">Came back to log</div>
+                    <div class="metric-subtext metric-subtext-link">Came back to log &middot; <span>View emails &rarr;</span></div>
                 </div>
             </div>
 
@@ -184,6 +187,18 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Drill-down modal (bucket emails / excluded accounts) -->
+    <div id="detail-overlay" class="detail-overlay" style="display: none;">
+        <div class="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
+            <div class="detail-modal-header">
+                <span id="detail-modal-title" class="detail-modal-title"></span>
+                <button id="detail-modal-close" class="detail-modal-close" aria-label="Close">&times;</button>
+            </div>
+            <div id="detail-modal-subtitle" class="detail-modal-subtitle"></div>
+            <div id="detail-modal-body" class="detail-modal-body"></div>
         </div>
     </div>
 

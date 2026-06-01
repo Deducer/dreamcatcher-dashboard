@@ -21,6 +21,53 @@ console.log('SUPABASE_SERVICE_KEY set:', !!supabaseKey, supabaseKey ? `(${supaba
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Internal accounts excluded from all dashboard metrics (founders / test /
+// first-party content). DISPLAY-LAYER ONLY — the rows remain in the database.
+// NOTE: the get_dream_statistics RPC already excludes these because it only
+// counts research_opt_in = true users (none of these have opted in) — so the
+// exclusion here only needs to cover the direct profiles/dreams queries.
+const EXCLUDED_USER_IDS = [
+    '50660950-54f5-485c-be1e-4a0d82d3a7c4', // theiancross@gmail.com (founder)
+    '543264f8-23cb-4813-8920-e5bf0541d0f3', // abb.kapoor@gmail.com (founder)
+    '6ad6e6b3-1aa6-4437-9931-20e5801e267e', // test@example.com (test)
+    '869f0bfe-cf9c-40ef-bb81-ab1fbe37565c', // app-review@thedreamcatcher.ai (review)
+    '23293769-d405-4519-a08d-ece0525aef5b', // reviewer@thedreamcatcher.ai (review)
+    'f3102dac-b205-4e21-9bad-fe36e1c3aa1e', // review-friend-sol@thedreamcatcher.ai (review)
+    'e144c450-f349-45d3-ad22-0b2bfa499a3b', // review-friend-mira@thedreamcatcher.ai (review)
+    '89329293-bf46-4001-8372-97b2af77bc08', // featured@thedreamcatcher.ai (featured/demo content)
+    'a8b53b63-10d4-43c3-8b1e-9cc61634b960', // test_nxprobe_check@example.com (test)
+    'ddec79ec-c32f-4651-83b3-ff2179f41058', // name@example.com (test)
+    '9c028f35-03d6-4703-80ab-40c477d27cd3', // thetest@gmail.com (test)
+    'f9d50f66-bcf5-4943-9254-8709d2d00952', // test@gmail.com (test)
+    '97599fa2-6b28-4c88-bedb-a2fd186d4295', // test@testing.com (test)
+];
+const EXCLUDED_IN_LIST = `(${EXCLUDED_USER_IDS.join(',')})`;
+// Apply the exclusion to a query builder. `column` is the user id column on the
+// table being queried ('id' for profiles, 'user_id' for dreams).
+const excludeInternal = (query, column) => query.not(column, 'in', EXCLUDED_IN_LIST);
+
+// Cached user_id -> email map (emails live in auth.users, not profiles).
+// Used to give email-level visibility into metric buckets + the excluded list.
+let _emailCache = { map: null, at: 0 };
+const EMAIL_CACHE_TTL = 5 * 60 * 1000;
+async function getEmailMap() {
+    if (_emailCache.map && Date.now() - _emailCache.at < EMAIL_CACHE_TTL) {
+        return _emailCache.map;
+    }
+    const map = {};
+    let page = 1;
+    while (page <= 50) {
+        const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+        if (error || !data || !data.users || data.users.length === 0) break;
+        data.users.forEach(u => { map[u.id] = u.email; });
+        if (data.users.length < 1000) break;
+        page++;
+    }
+    _emailCache = { map, at: Date.now() };
+    return map;
+}
+const emailFor = (map, id) => map[id] || `(unknown · ${String(id).slice(0, 8)})`;
+
 // Helper functions
 function getDateRange(range, earliestDate = null) {
     const now = new Date();
@@ -189,8 +236,8 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
         let earliestDate = null;
         if (range === 'all') {
             const [earliestProfile, earliestDream] = await Promise.all([
-                supabase.from('profiles').select('created_at').order('created_at', { ascending: true }).limit(1),
-                supabase.from('dreams').select('created_at').order('created_at', { ascending: true }).limit(1)
+                excludeInternal(supabase.from('profiles').select('created_at'), 'id').order('created_at', { ascending: true }).limit(1),
+                excludeInternal(supabase.from('dreams').select('created_at'), 'user_id').order('created_at', { ascending: true }).limit(1)
             ]);
 
             const dates = [
@@ -205,55 +252,59 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
 
         const { start, end, prevStart, prevEnd, days } = getDateRange(range, earliestDate);
 
+        // Resolve emails in parallel with the stats queries (cached, ~1 request)
+        const emailMapPromise = getEmailMap();
+
         // Fetch all data in parallel
         const queries = [
-            // Existing RPC for emotions, tags, etc.
+            // Existing RPC for emotions, tags, etc. (already excludes internal
+            // accounts via its research_opt_in filter — see EXCLUDED_USER_IDS note)
             supabase.rpc('get_dream_statistics'),
 
             // Total users (all time)
-            supabase.from('profiles').select('*', { count: 'exact', head: true }),
+            excludeInternal(supabase.from('profiles').select('*', { count: 'exact', head: true }), 'id'),
 
             // Total dreams (all time)
-            supabase.from('dreams').select('*', { count: 'exact', head: true }),
+            excludeInternal(supabase.from('dreams').select('*', { count: 'exact', head: true }), 'user_id'),
 
             // Dreams in current period
-            supabase.from('dreams')
+            excludeInternal(supabase.from('dreams')
                 .select('created_at, user_id')
                 .gte('created_at', start.toISOString())
-                .lte('created_at', end.toISOString()),
+                .lte('created_at', end.toISOString()), 'user_id'),
 
             // Users in current period
-            supabase.from('profiles')
+            excludeInternal(supabase.from('profiles')
                 .select('id, created_at')
                 .gte('created_at', start.toISOString())
-                .lte('created_at', end.toISOString()),
+                .lte('created_at', end.toISOString()), 'id'),
 
             // User retention buckets (all time)
-            supabase.from('dreams').select('user_id'),
+            excludeInternal(supabase.from('dreams').select('user_id'), 'user_id'),
 
             // All users with their first dream date
-            supabase.from('profiles').select('id, created_at'),
+            excludeInternal(supabase.from('profiles').select('id, created_at'), 'id'),
 
             // All dreams for first-time dreamer calculation
-            supabase.from('dreams')
+            excludeInternal(supabase.from('dreams')
                 .select('user_id, created_at')
-                .order('created_at', { ascending: true }),
+                .order('created_at', { ascending: true }), 'user_id'),
         ];
 
         // Add previous period queries if not "all time"
         if (prevStart && prevEnd) {
             queries.push(
                 // Dreams in previous period
-                supabase.from('dreams')
+                excludeInternal(supabase.from('dreams')
                     .select('created_at, user_id')
                     .gte('created_at', prevStart.toISOString())
-                    .lt('created_at', prevEnd.toISOString()),
+                    .lt('created_at', prevEnd.toISOString()), 'user_id'),
 
                 // Users in previous period
-                supabase.from('profiles')
+                excludeInternal(supabase.from('profiles')
                     .select('*', { count: 'exact', head: true })
                     .gte('created_at', prevStart.toISOString())
-                    .lt('created_at', prevEnd.toISOString())
+                    .lt('created_at', prevEnd.toISOString()), 'id')
             );
         }
 
@@ -319,14 +370,15 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
             }
         });
 
-        // Count first-time dreamers in current period
-        let firstTimeDreamers = 0;
-        Object.values(userFirstDream).forEach(firstDreamDate => {
+        // Count first-time dreamers in current period (keep the ids for drill-down)
+        const firstTimeDreamerIds = [];
+        Object.entries(userFirstDream).forEach(([userId, firstDreamDate]) => {
             const date = new Date(firstDreamDate);
             if (date >= start && date <= end) {
-                firstTimeDreamers++;
+                firstTimeDreamerIds.push(userId);
             }
         });
+        const firstTimeDreamers = firstTimeDreamerIds.length;
 
         // Returning users (users who had dreamed before this period and dreamed again in this period)
         const usersWhoDreamedBefore = new Set();
@@ -337,12 +389,13 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
             }
         });
 
-        let returningUsers = 0;
+        const returningUserIds = [];
         activeUserIds.forEach(userId => {
             if (usersWhoDreamedBefore.has(userId)) {
-                returningUsers++;
+                returningUserIds.push(userId);
             }
         });
+        const returningUsers = returningUserIds.length;
 
         // Conversion rate (users who signed up and recorded at least one dream)
         const allUsers = allUsersResult.data || [];
@@ -387,9 +440,19 @@ app.get('/api/stats', authMiddleware, async (req, res) => {
             else retention['10+ dreams']++;
         });
 
+        // Email-level drill-down for the bucket cards (sorted, case-insensitive)
+        const emailMap = await emailMapPromise;
+        const toEmailList = ids => ids
+            .map(id => emailFor(emailMap, id))
+            .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
         // Response
         const dashboardData = {
             range,
+            details: {
+                firstTimeDreamers: toEmailList(firstTimeDreamerIds),
+                returningUsers: toEmailList(returningUserIds)
+            },
             overview: {
                 totalDreams,
                 totalUsers,
@@ -435,9 +498,11 @@ app.get('/api/recent-dreams', authMiddleware, async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
 
-        const { data: dreams, error, count } = await supabase
-            .from('dreams')
-            .select('id, title, created_at, emotions', { count: 'exact' })
+        const { data: dreams, error, count } = await excludeInternal(
+            supabase
+                .from('dreams')
+                .select('id, title, created_at, emotions', { count: 'exact' }),
+            'user_id')
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
 
@@ -463,6 +528,42 @@ app.get('/api/recent-dreams', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Error fetching recent dreams:', error);
         res.status(500).json({ error: 'Failed to fetch recent dreams' });
+    }
+});
+
+// Excluded accounts (display-layer exclusions) — for dashboard visibility
+app.get('/api/excluded-accounts', authMiddleware, async (req, res) => {
+    try {
+        const emailMap = await getEmailMap();
+
+        const { data: profs } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .in('id', EXCLUDED_USER_IDS);
+        const usernameById = {};
+        (profs || []).forEach(p => { usernameById[p.id] = p.username; });
+
+        // Dream counts per excluded account, in parallel
+        const counts = await Promise.all(
+            EXCLUDED_USER_IDS.map(id =>
+                supabase.from('dreams').select('*', { count: 'exact', head: true }).eq('user_id', id)
+            )
+        );
+
+        const accounts = EXCLUDED_USER_IDS.map((id, i) => ({
+            email: emailFor(emailMap, id),
+            username: usernameById[id] || null,
+            dreams: counts[i].count || 0
+        })).sort((a, b) => b.dreams - a.dreams);
+
+        res.json({
+            count: accounts.length,
+            totalExcludedDreams: accounts.reduce((sum, a) => sum + a.dreams, 0),
+            accounts
+        });
+    } catch (error) {
+        console.error('Error fetching excluded accounts:', error);
+        res.status(500).json({ error: 'Failed to fetch excluded accounts' });
     }
 });
 

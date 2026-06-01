@@ -5,6 +5,11 @@ let dreamsPage = 1;
 let dreamsHasMore = true;
 let allDreams = [];
 
+// Email-level drill-down state
+let statsDetails = { firstTimeDreamers: [], returningUsers: [] };
+let excludedAccountsCache = null;
+let detailViewsInitialized = false;
+
 // Helper Functions
 function timeAgo(dateString) {
     const date = new Date(dateString);
@@ -100,8 +105,10 @@ function showDashboard() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('dashboard-screen').style.display = 'block';
     initTimeFilter();
+    initDetailViews();
     loadData();
     loadRecentDreams(true);
+    loadExcludedChip();
 }
 
 async function login() {
@@ -159,6 +166,7 @@ async function loadData() {
 
         const aggregation = data.timeSeries.aggregation || 'day';
 
+        statsDetails = data.details || { firstTimeDreamers: [], returningUsers: [] };
         updateOverviewMetrics(data.overview);
         renderGrowthChart(data.timeSeries.dreams, aggregation);
         renderAcquisitionChart(data.timeSeries.users, aggregation);
@@ -230,6 +238,103 @@ function updateOverviewMetrics(overview) {
 
     document.getElementById('first-time-dreamers').textContent = formatNumber(overview.firstTimeDreamers);
     document.getElementById('returning-users').textContent = formatNumber(overview.returningUsers);
+}
+
+// ============================================================
+// Email-level drill-down (bucket cards + excluded accounts)
+// ============================================================
+
+function initDetailViews() {
+    if (detailViewsInitialized) return;
+    detailViewsInitialized = true;
+
+    document.getElementById('card-first-time').addEventListener('click', () => {
+        openDetailModal(
+            'First-Time Dreamers',
+            `${getRangeLabel(currentRange)} — users whose first-ever dream falls in this period`,
+            emailRows(statsDetails.firstTimeDreamers),
+            statsDetails.firstTimeDreamers.length
+        );
+    });
+
+    document.getElementById('card-returning').addEventListener('click', () => {
+        openDetailModal(
+            'Returning Users',
+            `${getRangeLabel(currentRange)} — dreamed before this period and came back`,
+            emailRows(statsDetails.returningUsers),
+            statsDetails.returningUsers.length
+        );
+    });
+
+    document.getElementById('excluded-chip').addEventListener('click', showExcludedAccounts);
+
+    // Close interactions
+    document.getElementById('detail-modal-close').addEventListener('click', closeDetailModal);
+    document.getElementById('detail-overlay').addEventListener('click', (e) => {
+        if (e.target.id === 'detail-overlay') closeDetailModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeDetailModal();
+    });
+}
+
+function emailRows(emails) {
+    if (!emails || emails.length === 0) {
+        return '<div class="detail-empty">No accounts in this bucket for the selected period.</div>';
+    }
+    return emails.map(email => `
+        <div class="email-row">
+            <span class="email-addr">${escapeHtml(email)}</span>
+        </div>
+    `).join('');
+}
+
+function openDetailModal(title, subtitle, bodyHtml, count) {
+    const titleEl = document.getElementById('detail-modal-title');
+    titleEl.textContent = count !== undefined ? `${title} (${count})` : title;
+    document.getElementById('detail-modal-subtitle').textContent = subtitle || '';
+    document.getElementById('detail-modal-body').innerHTML = bodyHtml;
+    document.getElementById('detail-overlay').style.display = 'flex';
+}
+
+function closeDetailModal() {
+    document.getElementById('detail-overlay').style.display = 'none';
+}
+
+async function loadExcludedChip() {
+    try {
+        if (!excludedAccountsCache) {
+            const res = await fetch('/api/excluded-accounts');
+            excludedAccountsCache = await res.json();
+        }
+        document.getElementById('excluded-chip-count').textContent = excludedAccountsCache.count;
+    } catch (e) {
+        console.error('Failed to load excluded accounts', e);
+    }
+}
+
+async function showExcludedAccounts() {
+    try {
+        if (!excludedAccountsCache) {
+            const res = await fetch('/api/excluded-accounts');
+            excludedAccountsCache = await res.json();
+        }
+        const { accounts, totalExcludedDreams } = excludedAccountsCache;
+        const rows = accounts.map(a => `
+            <div class="email-row">
+                <span class="email-addr">${escapeHtml(a.email)}</span>
+                <span class="email-meta">${a.username ? escapeHtml(a.username) + ' · ' : ''}${a.dreams} dream${a.dreams === 1 ? '' : 's'}</span>
+            </div>
+        `).join('');
+        openDetailModal(
+            'Excluded Accounts',
+            `Filtered from every metric (display-only) — ${totalExcludedDreams} dreams hidden`,
+            rows,
+            accounts.length
+        );
+    } catch (e) {
+        console.error('Failed to show excluded accounts', e);
+    }
 }
 
 // Chart Rendering Functions
