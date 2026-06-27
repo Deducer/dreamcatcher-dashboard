@@ -120,6 +120,33 @@
                 </div>
             </div>
 
+            <!-- Launch · Re-engagement Section -->
+            <div class="charts-section" id="reactivation-section">
+                <h2 class="section-header">Launch &middot; Re-engagement
+                    <span style="font-weight:400; font-size:0.8rem; color:#a3a3a3; margin-left:10px;">
+                        since <input type="date" id="reactivation-since" style="background:#1a1a1a; color:#f5f5f5; border:1px solid rgba(255,255,255,0.12); border-radius:6px; padding:3px 8px; font-size:0.8rem;">
+                    </span>
+                </h2>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-label">Emailed Cohort</div>
+                        <div class="metric-value" id="reactivation-cohort">-</div>
+                        <div class="metric-subtext">Accounts before launch</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Signed Back In</div>
+                        <div class="metric-value" id="reactivation-signedin">-</div>
+                        <div class="metric-subtext" id="reactivation-signedin-pct">of cohort</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Created a Dream</div>
+                        <div class="metric-value" id="reactivation-dreamers">-</div>
+                        <div class="metric-subtext" id="reactivation-dreamers-pct">of cohort</div>
+                    </div>
+                </div>
+                <div id="reactivation-hint" class="metric-subtext" style="margin-top:8px; color:#737373;"></div>
+            </div>
+
             <!-- Growth Charts Section -->
             <div class="charts-section">
                 <h2 class="section-header">Growth Trends</h2>

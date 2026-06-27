@@ -626,6 +626,64 @@ app.get('/api/excluded-accounts', authMiddleware, async (req, res) => {
     }
 });
 
+// Launch re-engagement — of the accounts that existed BEFORE the send date, how
+// many signed back in / created a dream since. `since` comes from ?since=YYYY-MM-DD
+// or the REACTIVATION_SINCE env. Mirrors scripts/track-reactivation.ts (email repo).
+app.get('/api/reactivation', authMiddleware, async (req, res) => {
+    try {
+        const since = req.query.since || process.env.REACTIVATION_SINCE || '';
+        if (!since) return res.json({ configured: false });
+        const sinceISO = new Date(`${since}T00:00:00Z`).toISOString();
+
+        await refreshExcludedIds();
+
+        // Pull all auth users (id, email, created_at, last_sign_in_at)
+        const users = [];
+        let page = 1;
+        while (page <= 50) {
+            const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+            if (error || !data || !data.users || data.users.length === 0) break;
+            users.push(...data.users);
+            if (data.users.length < 1000) break;
+            page++;
+        }
+
+        // Cohort = non-internal accounts created before the send date (the people we emailed).
+        const cohort = users.filter(u =>
+            u.created_at && u.created_at < sinceISO &&
+            !EXCLUDED_USER_ID_SET.has(u.id) && !isExcludedEmail(u.email)
+        );
+        const cohortIds = new Set(cohort.map(u => u.id));
+        const signedIn = cohort.filter(u => u.last_sign_in_at && u.last_sign_in_at >= sinceISO).length;
+
+        // Cohort members who created a dream since the send date (paginated).
+        const dreamerIds = new Set();
+        for (let from = 0; from < 200000; from += 1000) {
+            const { data, error } = await excludeInternal(
+                supabase.from('dreams').select('user_id, created_at').gte('created_at', sinceISO),
+                'user_id'
+            ).range(from, from + 999);
+            if (error || !data || data.length === 0) break;
+            data.forEach(d => { if (cohortIds.has(d.user_id)) dreamerIds.add(d.user_id); });
+            if (data.length < 1000) break;
+        }
+
+        const pct = n => (cohort.length ? Math.round((n / cohort.length) * 1000) / 10 : 0);
+        res.json({
+            configured: true,
+            since,
+            cohortSize: cohort.length,
+            signedIn,
+            signedInPct: pct(signedIn),
+            dreamers: dreamerIds.size,
+            dreamersPct: pct(dreamerIds.size),
+        });
+    } catch (error) {
+        console.error('Error fetching reactivation:', error);
+        res.status(500).json({ error: 'Failed to fetch reactivation' });
+    }
+});
+
 // Check Auth Status
 app.get('/api/check-auth', (req, res) => {
     const authCookie = req.cookies.dashboard_auth;

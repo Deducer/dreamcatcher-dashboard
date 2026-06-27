@@ -109,6 +109,7 @@ function showDashboard() {
     loadData();
     loadRecentDreams(true);
     loadExcludedChip();
+    initReactivation();
 }
 
 async function login() {
@@ -178,6 +179,53 @@ async function loadData() {
 
     } catch (e) {
         console.error("Failed to load data", e);
+    }
+}
+
+// Launch re-engagement panel — reactivation of the pre-launch cohort.
+function initReactivation() {
+    const input = document.getElementById('reactivation-since');
+    if (!input) return;
+    const saved = localStorage.getItem('reactivationSince');
+    if (saved) input.value = saved;
+    input.addEventListener('change', () => {
+        localStorage.setItem('reactivationSince', input.value);
+        loadReactivation();
+    });
+    loadReactivation();
+}
+
+async function loadReactivation() {
+    const input = document.getElementById('reactivation-since');
+    const hint = document.getElementById('reactivation-hint');
+    const since = input ? input.value : '';
+    const setVals = (cohort, signedIn, dreamers, siPct, drPct) => {
+        document.getElementById('reactivation-cohort').textContent = cohort;
+        document.getElementById('reactivation-signedin').textContent = signedIn;
+        document.getElementById('reactivation-dreamers').textContent = dreamers;
+        document.getElementById('reactivation-signedin-pct').textContent = siPct;
+        document.getElementById('reactivation-dreamers-pct').textContent = drPct;
+    };
+    try {
+        const res = await fetch('/api/reactivation' + (since ? `?since=${since}` : ''));
+        const d = await res.json();
+        if (!d.configured) {
+            setVals('-', '-', '-', 'of cohort', 'of cohort');
+            if (hint) hint.textContent = 'Pick your launch (send) date above to see how many pre-launch accounts have come back.';
+            return;
+        }
+        if (input && !input.value) input.value = d.since;
+        setVals(
+            formatNumber(d.cohortSize),
+            formatNumber(d.signedIn),
+            formatNumber(d.dreamers),
+            d.signedInPct + '% of cohort',
+            d.dreamersPct + '% of cohort'
+        );
+        if (hint) hint.textContent = `Of ${formatNumber(d.cohortSize)} accounts that existed before ${d.since}, ${formatNumber(d.signedIn)} signed back in and ${formatNumber(d.dreamers)} logged a dream since.`;
+    } catch (e) {
+        console.error('Failed to load reactivation', e);
+        if (hint) hint.textContent = 'Could not load re-engagement data.';
     }
 }
 
