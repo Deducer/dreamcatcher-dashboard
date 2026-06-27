@@ -41,7 +41,41 @@ const EXCLUDED_USER_IDS = [
     'f9d50f66-bcf5-4943-9254-8709d2d00952', // test@gmail.com (test)
     '97599fa2-6b28-4c88-bedb-a2fd186d4295', // test@testing.com (test)
 ];
-const EXCLUDED_IN_LIST = `(${EXCLUDED_USER_IDS.join(',')})`;
+
+// Email-pattern exclusion — the DURABLE mechanism. Unlike the static UUID list
+// above, these rules automatically catch NEW and plus-addressed accounts (e.g.
+// ian+051026@thedreamcatcher.ai, used for testing) the moment they sign up,
+// without anyone having to add a UUID by hand.
+//   - Any address at one of these domains is internal (our own domain: every
+//     founder / review / featured / future address on it).
+const EXCLUDED_EMAIL_DOMAINS = ['thedreamcatcher.ai'];
+//   - Specific external addresses belonging to the team. Plus-tags and casing
+//     are normalized away, so theiancross+anything@gmail.com also matches.
+const EXCLUDED_EMAILS = [
+    'theiancross@gmail.com',
+    'ian@vayulabs.com',
+    'ian@creditbuildercard.com',
+];
+
+// Lowercase + strip Gmail-style "+tag" sub-addressing so ian+051026@x === ian@x.
+function normalizeEmail(email) {
+    const [local, domain] = String(email || '').toLowerCase().trim().split('@');
+    if (!domain) return '';
+    return `${local.split('+')[0]}@${domain}`;
+}
+function isExcludedEmail(email) {
+    const e = String(email || '').toLowerCase().trim();
+    const domain = e.split('@')[1];
+    if (!domain) return false;
+    if (EXCLUDED_EMAIL_DOMAINS.includes(domain)) return true;
+    return EXCLUDED_EMAILS.includes(normalizeEmail(e));
+}
+
+// The live exclusion set = static UUIDs ∪ every user whose email matches the
+// rules above. Refreshed from the cached email map via refreshExcludedIds().
+// Seeded with the static IDs so metrics stay filtered before the first refresh.
+let EXCLUDED_USER_ID_SET = new Set(EXCLUDED_USER_IDS);
+let EXCLUDED_IN_LIST = `(${EXCLUDED_USER_IDS.join(',')})`;
 // Apply the exclusion to a query builder. `column` is the user id column on the
 // table being queried ('id' for profiles, 'user_id' for dreams).
 const excludeInternal = (query, column) => query.not(column, 'in', EXCLUDED_IN_LIST);
@@ -67,6 +101,21 @@ async function getEmailMap() {
     return map;
 }
 const emailFor = (map, id) => map[id] || `(unknown · ${String(id).slice(0, 8)})`;
+
+// Recompute the live exclusion set from the (cached) email map: static UUIDs
+// plus every account whose email matches the internal rules. Cheap — operates
+// in memory on the already-fetched map. Call before running metric queries so
+// excludeInternal() filters out newly-created internal/test accounts too.
+async function refreshExcludedIds() {
+    const map = await getEmailMap();
+    const set = new Set(EXCLUDED_USER_IDS);
+    for (const [id, email] of Object.entries(map)) {
+        if (isExcludedEmail(email)) set.add(id);
+    }
+    EXCLUDED_USER_ID_SET = set;
+    EXCLUDED_IN_LIST = `(${[...set].join(',')})`;
+    return set;
+}
 
 // Helper functions
 function getDateRange(range, earliestDate = null) {
@@ -231,6 +280,10 @@ app.post('/api/logout', (req, res) => {
 app.get('/api/stats', authMiddleware, async (req, res) => {
     try {
         const range = req.query.range || '30d';
+
+        // Refresh the internal-account exclusion set (static UUIDs + email-rule
+        // matches) before any query so new/test accounts are filtered out.
+        await refreshExcludedIds();
 
         // For "all" range, find the earliest data point first
         let earliestDate = null;
@@ -500,6 +553,8 @@ app.get('/api/recent-dreams', authMiddleware, async (req, res) => {
         const limit = parseInt(req.query.limit) || 10;
         const offset = (page - 1) * limit;
 
+        await refreshExcludedIds();
+
         const { data: dreams, error, count } = await excludeInternal(
             supabase
                 .from('dreams')
@@ -537,22 +592,24 @@ app.get('/api/recent-dreams', authMiddleware, async (req, res) => {
 app.get('/api/excluded-accounts', authMiddleware, async (req, res) => {
     try {
         const emailMap = await getEmailMap();
+        await refreshExcludedIds();
+        const excludedIds = [...EXCLUDED_USER_ID_SET];
 
         const { data: profs } = await supabase
             .from('profiles')
             .select('id, username')
-            .in('id', EXCLUDED_USER_IDS);
+            .in('id', excludedIds);
         const usernameById = {};
         (profs || []).forEach(p => { usernameById[p.id] = p.username; });
 
         // Dream counts per excluded account, in parallel
         const counts = await Promise.all(
-            EXCLUDED_USER_IDS.map(id =>
+            excludedIds.map(id =>
                 supabase.from('dreams').select('*', { count: 'exact', head: true }).eq('user_id', id)
             )
         );
 
-        const accounts = EXCLUDED_USER_IDS.map((id, i) => ({
+        const accounts = excludedIds.map((id, i) => ({
             email: emailFor(emailMap, id),
             username: usernameById[id] || null,
             dreams: counts[i].count || 0
