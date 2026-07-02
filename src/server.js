@@ -684,6 +684,91 @@ app.get('/api/reactivation', authMiddleware, async (req, res) => {
     }
 });
 
+// --- Moderation queue -------------------------------------------------------
+// Human-review surface behind the App Store 1.2 promise ("moderators review
+// within 24 hours"): open content_reports + AI-flagged dreams, with actions.
+// The AI gate (moderate-content fn) sets dreams.moderation_status at submit
+// time; everything the RLS exposes publicly requires status = 'approved', so
+// 'block' here immediately pulls content from shared/public surfaces.
+app.get('/api/moderation', authMiddleware, async (req, res) => {
+    try {
+        const emailMap = await getEmailMap();
+
+        const { data: reports, error: repErr } = await supabase
+            .from('content_reports')
+            .select('id, reporter_id, reported_user_id, reported_dream_id, reason, status, created_at')
+            .eq('status', 'open')
+            .order('created_at', { ascending: true });
+        if (repErr) throw repErr;
+
+        // Attach the reported dream's context (title/content/moderation state).
+        const dreamIds = [...new Set((reports || []).map(r => r.reported_dream_id).filter(Boolean))];
+        let dreamsById = {};
+        if (dreamIds.length) {
+            const { data: dreams, error: dErr } = await supabase
+                .from('dreams')
+                .select('id, title, content, user_id, is_public, visibility, moderation_status')
+                .in('id', dreamIds);
+            if (dErr) throw dErr;
+            dreamsById = Object.fromEntries((dreams || []).map(d => [d.id, d]));
+        }
+
+        const { data: flagged, error: flagErr } = await supabase
+            .from('dreams')
+            .select('id, title, content, user_id, visibility, moderation_status, created_at')
+            .eq('moderation_status', 'flagged')
+            .order('created_at', { ascending: true })
+            .limit(50);
+        if (flagErr) throw flagErr;
+
+        const clip = (s) => (s && s.length > 400 ? s.slice(0, 400) + '…' : s);
+        res.json({
+            reports: (reports || []).map(r => ({
+                ...r,
+                reporterEmail: emailFor(emailMap, r.reporter_id),
+                reportedUserEmail: r.reported_user_id ? emailFor(emailMap, r.reported_user_id) : null,
+                dream: r.reported_dream_id && dreamsById[r.reported_dream_id]
+                    ? { ...dreamsById[r.reported_dream_id], content: clip(dreamsById[r.reported_dream_id].content) }
+                    : null,
+            })),
+            flaggedDreams: (flagged || []).map(d => ({
+                ...d,
+                content: clip(d.content),
+                ownerEmail: emailFor(emailMap, d.user_id),
+            })),
+        });
+    } catch (error) {
+        console.error('Error fetching moderation queue:', error);
+        res.status(500).json({ error: 'Failed to fetch moderation queue' });
+    }
+});
+
+app.post('/api/moderation/action', authMiddleware, async (req, res) => {
+    try {
+        const { kind, id, action } = req.body || {};
+        if (kind === 'report' && ['reviewed', 'actioned', 'dismissed'].includes(action)) {
+            const { error } = await supabase
+                .from('content_reports')
+                .update({ status: action, reviewed_at: new Date().toISOString() })
+                .eq('id', id);
+            if (error) throw error;
+            return res.json({ success: true });
+        }
+        if (kind === 'dream' && ['blocked', 'approved'].includes(action)) {
+            const { error } = await supabase
+                .from('dreams')
+                .update({ moderation_status: action })
+                .eq('id', id);
+            if (error) throw error;
+            return res.json({ success: true });
+        }
+        res.status(400).json({ error: 'Invalid moderation action' });
+    } catch (error) {
+        console.error('Error applying moderation action:', error);
+        res.status(500).json({ error: 'Failed to apply moderation action' });
+    }
+});
+
 // Check Auth Status
 app.get('/api/check-auth', (req, res) => {
     const authCookie = req.cookies.dashboard_auth;

@@ -760,3 +760,18 @@ body {
     color: var(--text-muted);
     font-size: 0.875rem;
 }
+
+/* Moderation queue */
+#moderation-section { border-left: 3px solid #e5484d; }
+.moderation-row { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.moderation-row:last-child { border-bottom: none; }
+.moderation-body { min-width: 0; flex: 1; }
+.moderation-body p { margin: 6px 0; }
+.moderation-meta { font-size: 11px; letter-spacing: 0.04em; opacity: 0.65; text-transform: uppercase; }
+.moderation-dream { margin-top: 8px; padding: 10px 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; }
+.moderation-dream p { font-size: 13px; opacity: 0.85; }
+.moderation-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.moderation-actions button { padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: inherit; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.moderation-actions button:hover { border-color: rgba(255,255,255,0.4); }
+.moderation-actions button[data-action="blocked"], .moderation-actions button[data-action="block-dream"] { border-color: rgba(229,72,77,0.5); color: #e5484d; }
+.moderation-actions button:disabled { opacity: 0.4; cursor: default; }

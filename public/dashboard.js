@@ -180,6 +180,97 @@ async function loadData() {
     } catch (e) {
         console.error("Failed to load data", e);
     }
+    loadModeration();
+}
+
+// Moderation queue — open content reports + AI-flagged dreams, with actions.
+async function loadModeration() {
+    const section = document.getElementById('moderation-section');
+    if (!section) return;
+    try {
+        const res = await fetch('/api/moderation');
+        const data = await res.json();
+        const reports = data.reports || [];
+        const flagged = data.flaggedDreams || [];
+        const total = reports.length + flagged.length;
+        document.getElementById('moderation-count').textContent = total;
+        section.style.display = total ? '' : 'none';
+        if (!total) return;
+
+        const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+        ));
+        const dreamBlock = (d) => d ? `
+            <div class="moderation-dream">
+                <strong>${esc(d.title || 'Untitled dream')}</strong>
+                <span class="moderation-meta">visibility: ${esc(d.visibility)} · status: ${esc(d.moderation_status)}</span>
+                <p>${esc(d.content)}</p>
+            </div>` : '';
+
+        const rows = [];
+        for (const r of reports) {
+            rows.push(`
+            <div class="moderation-row" data-kind="report" data-id="${esc(r.id)}">
+                <div class="moderation-body">
+                    <span class="moderation-meta">REPORT · ${esc(r.created_at?.slice(0, 16).replace('T', ' '))} ·
+                        by ${esc(r.reporterEmail)}${r.reportedUserEmail ? ` · against ${esc(r.reportedUserEmail)}` : ''}</span>
+                    <p><em>${esc(r.reason)}</em></p>
+                    ${dreamBlock(r.dream)}
+                </div>
+                <div class="moderation-actions">
+                    ${r.dream && r.dream.moderation_status !== 'blocked'
+                        ? `<button data-action="block-dream" data-dream-id="${esc(r.dream.id)}">Block dream</button>` : ''}
+                    <button data-action="actioned">Mark actioned</button>
+                    <button data-action="dismissed">Dismiss</button>
+                </div>
+            </div>`);
+        }
+        for (const d of flagged) {
+            rows.push(`
+            <div class="moderation-row" data-kind="dream" data-id="${esc(d.id)}">
+                <div class="moderation-body">
+                    <span class="moderation-meta">AI-FLAGGED · ${esc(d.created_at?.slice(0, 16).replace('T', ' '))} ·
+                        by ${esc(d.ownerEmail)}</span>
+                    ${dreamBlock(d)}
+                </div>
+                <div class="moderation-actions">
+                    <button data-action="approved">Approve</button>
+                    <button data-action="blocked">Block</button>
+                </div>
+            </div>`);
+        }
+        const list = document.getElementById('moderation-list');
+        list.innerHTML = rows.join('');
+        list.querySelectorAll('button[data-action]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const row = btn.closest('.moderation-row');
+                const action = btn.dataset.action;
+                btn.disabled = true;
+                try {
+                    if (action === 'block-dream') {
+                        await fetch('/api/moderation/action', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ kind: 'dream', id: btn.dataset.dreamId, action: 'blocked' }),
+                        });
+                        // Blocking the dream resolves the report too.
+                        await fetch('/api/moderation/action', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ kind: 'report', id: row.dataset.id, action: 'actioned' }),
+                        });
+                    } else {
+                        await fetch('/api/moderation/action', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ kind: row.dataset.kind, id: row.dataset.id, action }),
+                        });
+                    }
+                } finally {
+                    loadModeration();
+                }
+            });
+        });
+    } catch (e) {
+        console.error('Failed to load moderation queue', e);
+    }
 }
 
 // Launch re-engagement panel — reactivation of the pre-launch cohort.
