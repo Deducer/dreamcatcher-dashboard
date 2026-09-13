@@ -1,33 +1,35 @@
 # DreamCatcher marketing dashboard
 
-The Marketing tab answers: where do new people come from, do they save a first
-dream, do they return, and does that value become subscription revenue?
+The default Marketing tab answers: how are people discovering DreamCatcher,
+which sources bring traffic, and what exposure and campaign measurements are
+still missing? Product usage remains in the Product tab. App and billing outcomes
+are collapsed under **What happens after acquisition** as a traffic-quality check.
 
-## Weekly operating view
+## Acquisition operating view
 
-Review 30 days by default, with 7- and 90-day comparisons. Counts use complete
-UTC days through yesterday so product, website and billing activity use comparable
-windows. RevenueCat overview values retain their own current/28-day scope.
+Review 30 days by default, with 7- and 90-day ranges. Counts use complete UTC
+days through yesterday. Unavailable provider retention windows stay unavailable.
 
-1. **Weekly habit builders:** known external accounts saving dreams on at least
-   two distinct UTC days in the last seven complete days. This is a proposed
-   leading indicator, not a validated predictor of payment. Check its relationship
-   to later paid retention before treating the threshold as a target.
-2. **Acquisition:** new Supabase profiles, with a comparison to the previous
-   equal-length period. This is signups, not downloads or RevenueCat SDK users.
-3. **Activation:** a saved dream in `[signup, signup + 48h)`, among signups with
-   a complete 48-hour observation window. The previous period is evaluated at its
-   own end. First interpretation seen before signup is a separate value moment;
-   do not assume it was saved or successfully claimed.
-4. **Retention:** a saved dream in days `[7,14)` or `[28,35)` after signup, among
-   accounts old enough to observe the entire window. Weekly rows show denominators
-   and pending accounts. Same-day repeat submissions do not establish a habit.
-5. **Payment:** RevenueCat overview MRR, active subscriptions and trials; separate
-   trial-start cohorts and paid subscription starts from its Charts API. Trial
-   conversion is withheld while any trial in the selected cohort remains pending.
-   Paid subscription starts include resubscriptions and product changes, so the
-   label intentionally does not say “new customers.” Revenue is not cash payout,
-   profit, or lifetime value.
+1. **Website visitors and page views:** production website totals, with the
+   previous equal-length period shown alongside. Visitors are not app installs.
+2. **Referrers:** raw referring hosts, visitors, page views and share of total
+   views. Visitors can overlap across rows. Direct / unknown includes absent
+   referrers, not proven organic traffic. Provider `Others` is the remaining
+   groups after the report limit. ChatGPT and social referrals are unclassified,
+   because a referrer alone cannot establish paid versus organic acquisition.
+3. **Daily page views and most viewed pages:** exact daily values are expandable.
+   Page paths describe all views, not first-entry landing pages.
+4. **Channel exposure:** distinguish recorded website referrals from social
+   views/reach, search impressions and ad clicks/spend. The latter feeds are not
+   connected. Instagram and TikTok publishing connections in Postiz do not imply
+   analytics availability; the installed version does not expose that API.
+5. **Campaign tags:** show campaign/source breakdowns if the provider allows them.
+   On September 13, 2026, Vercel returned HTTP 402 for `utmCampaign` and `utmSource`:
+   Web Analytics Plus or Enterprise is required. This release purchases no upgrade.
+6. **Outcomes:** registrations, trial starts, paid subscription starts, reported
+   acquisition sources and selected retention metrics. They are separate cohorts,
+   not a joined website-to-install-to-payment funnel. RevenueCat paid starts can
+   include resubscriptions and product changes, so they are not new paying customers.
 
 Show counts with rates, preserve unknowns, and avoid declaring winners from small
 samples. The UI marks fewer than 30 eligible people as a small sample; this is a
@@ -42,19 +44,23 @@ display caution, not a significance test or a minimum experiment size.
 | Paywall friction | PostHog production events for known signed-in accounts | Step reach, not ordered conversion; anonymous onboarding and old event names are not mixed in |
 | Subscription overview | RevenueCat overview API | Provider-wide scope; not filtered by the dashboard’s account exclusion list; lifetime proceeds are never used as MRR |
 | Trials and paid starts | RevenueCat Charts API | Discover supported options; filter App Store + Play Store; use cohort totals, not average daily percentages |
-| Web visitors/page views | Vercel Analytics | Verify echoed UTC window; visits cannot be joined directly to store installs |
+| Web totals, referrers, daily views, page paths, campaign tags | Vercel Analytics | Verify echoed UTC window; visitors overlap across groups; visits cannot be joined directly to store installs |
 | Email delivery events | Supabase email_events | Distinct message IDs per event type in period, not sent-cohort rates; history starts Aug 26, 2026; internal email rules applied |
 
 Optional sources fail independently. Unconfigured sources show “Not connected”;
 failed requests show “Unavailable for this period.” A failed Supabase read or account
 exclusion refresh fails the core view rather than publishing partial totals.
-The endpoint is authenticated. The page fetches core product metrics first, then
-loads optional sources without hiding the core results. Core reads have a
-12-second deadline, each optional source has an 8-second total deadline, and
-browser requests have a 15-second deadline. Timed-out provider requests are
-aborted. Healthy results are cached for five minutes per range; failed optional
-sources reduce the full-response cache lifetime to 15 seconds so Refresh can
-retry. The UI shows when the data was fetched.
+Both endpoints are authenticated. `/api/acquisition` loads independently of
+`/api/marketing`, so a slow Supabase, PostHog or billing request cannot hide traffic.
+Each acquisition report has an eight-second deadline and its own availability
+status. Healthy responses cache for five minutes; provider failures reduce that
+response's cache lifetime to 15 seconds. Browser requests time out after 15 seconds.
+The acquisition API returns only normalized dimensions and aggregate counts.
+
+Vercel count queries use an exclusive midnight upper bound. Aggregate queries
+round their inclusive upper bound up to the next hour, so they receive the final
+millisecond of yesterday. Both responses must echo the exact expected UTC range;
+an extra hour is rejected rather than silently mixed into complete-day reports.
 
 ## Next measurements to connect
 
@@ -88,8 +94,8 @@ Keep existing Supabase/password variables. Add server-only values from Doppler
 are in `.env.example`; their defaults match the established DreamCatcher projects.
 No Supabase migration, tracking event changes, or new database is required.
 
-Run `npm test` for cohort boundaries, pagination, attribution and unavailable
-sources. Run JavaScript syntax checks and authenticated HTTP checks for 7/30/90
+Run `npm test` for cohort boundaries, pagination, attribution, exact website
+report windows, independent provider failures and unavailable sources. Run JavaScript syntax checks and authenticated HTTP checks for 7/30/90
 days, missing auth, invalid range, and the existing Product endpoint.
 
 Production is `https://dreamverse.projectwin.cloud`, per the July 5 cutover;
@@ -99,6 +105,8 @@ current Coolify app/source before deploying, then verify the live authenticated
 Marketing view. A local preview is not a production release.
 
 ## Reference material
+
+- [Vercel Web Analytics API](https://vercel.com/docs/analytics/web-analytics-api)
 
 - [RevenueCat chart definitions](https://www.revenuecat.com/docs/dashboard-and-metrics/charts)
 - [RevenueCat Charts and Metrics API](https://www.revenuecat.com/docs/api-v2/charts-and-metrics)

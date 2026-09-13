@@ -819,3 +819,29 @@ body {
 .moderation-actions button:hover { border-color: rgba(255,255,255,0.4); }
 .moderation-actions button[data-action="blocked"], .moderation-actions button[data-action="block-dream"] { border-color: rgba(229,72,77,0.5); color: #e5484d; }
 .moderation-actions button:disabled { opacity: 0.4; cursor: default; }
+
+/* Acquisition view: traffic first, downstream outcomes on demand. */
+.acq-eyebrow { font-size: .7rem !important; font-weight: 600; letter-spacing: .12em; color: #b59aff !important; margin: 0 0 10px !important; }
+.acq-kpis { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.acq-kpis .metric-label { margin: 0; }
+.acq-badge { background: rgba(147,105,255,.1); border: 1px solid rgba(147,105,255,.3); color: #c8b3ff; border-radius: 999px; padding: 6px 12px; font-size: .75rem; }
+.acq-empty { padding: 22px 0; color: var(--text-secondary); font-size: .9rem; }
+.acq-empty p { margin: 8px 0 0; max-width: 650px; }
+.acq-empty strong { color: var(--text-primary); font-weight: 500; }
+.acq-source { overflow-wrap: anywhere; min-width: 150px; }
+.acq-share { display: block; width: 90px; height: 4px; margin-top: 8px; border-radius: 8px; background: var(--bg-elevated); }
+.acq-share > span { display: block; height: 100%; border-radius: inherit; background: #9b75f5; }
+.acq-trend { display: flex; align-items: end; gap: 3px; height: 180px; margin: 26px 0 10px; border-bottom: 1px solid var(--text-muted); }
+.acq-day { display: flex; align-items: end; flex: 1; height: 100%; min-width: 0; }
+.acq-day > span { width: 100%; background: linear-gradient(#b298ff,#7952cc); border-radius: 3px 3px 0 0; }
+.acq-trend-labels { display: flex; justify-content: space-between; color: var(--text-secondary); font-size: .75rem; }
+.acq-daily-values { margin-top: 20px; }
+.acq-daily-values summary, #acquisition-outcomes > summary { cursor: pointer; }
+#acquisition-outcomes > summary { font-size: 1.15rem; font-weight: 600; padding: 6px 0; }
+#acquisition-outcomes[open] > summary { margin-bottom: 14px; }
+.acq-next { border-color: rgba(147,105,255,.3); }
+.acq-steps { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 24px; margin: 20px 0; }
+.acq-steps strong { font-size: .95rem; }
+.acq-steps p { color: var(--text-secondary); font-size: .875rem; line-height: 1.6; margin: 8px 0 0; }
+#growth-quality-content { margin-top: 22px; }
+@media(max-width:700px) { .acq-kpis, .acq-steps { grid-template-columns:1fr; } .acq-trend { height:130px; } .acq-source { min-width:125px; } }
