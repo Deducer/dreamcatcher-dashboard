@@ -3,6 +3,7 @@ const { createClient } = require('@supabase/supabase-js');
 const cookieParser = require('cookie-parser');
 const path = require('path');
 const { createMarketingService } = require('./marketing');
+const { createAcquisitionService } = require('./acquisition');
 require('dotenv').config();
 
 const app = express();
@@ -256,6 +257,14 @@ const authMiddleware = (req, res, next) => {
 };
 
 // Routes
+const acquisition = createAcquisitionService();
+app.get('/api/acquisition', authMiddleware, async (req, res) => {
+    const days = new Map([['7d', 7], ['30d', 30], ['90d', 90]]).get(req.query.range || '30d');
+    if (!days) return res.status(400).json({ error: 'Choose 7d, 30d, or 90d.' });
+    res.set('Cache-Control', 'no-store');
+    try { res.json(await acquisition(days)); }
+    catch { res.status(503).json({ error: 'Acquisition sources could not be loaded. Please retry.' }); }
+});
 const marketing = createMarketingService({ supabase, refreshExcludedIds, isExcludedEmail });
 app.get('/api/marketing', authMiddleware, async (req, res) => {
     const days = new Map([['7d', 7], ['30d', 30], ['90d', 90]]).get(req.query.range || '30d');
