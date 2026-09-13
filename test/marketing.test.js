@@ -70,3 +70,29 @@ test('missing or failed integrations are explicit, without leaking upstream erro
     assert.deepEqual(await optionalSource(false, () => { throw Error('must not execute'); }), { status: 'not_connected', data: null });
     assert.deepEqual(await optionalSource(true, () => { throw Error('secret'); }), { status: 'unavailable', data: null });
 });
+
+test('a hung optional integration times out and aborts without blocking other metrics', async () => {
+    let receivedSignal;
+    const result = await optionalSource(true, signal => {
+        receivedSignal = signal;
+        return new Promise(() => {});
+    }, 10);
+    assert.deepEqual(result, { status: 'unavailable', data: null });
+    assert.equal(receivedSignal.aborted, true);
+});
+
+test('core metrics do not wait for or contact optional external providers', async () => {
+    const { createMarketingService } = require('../src/marketing');
+    const rows = { profiles: [profile('a', 3)], dreams: [dream('a', 2)] };
+    const supabase = { from: table => {
+        assert.ok(table in rows, 'Core should not query email events');
+        const query = { select: () => query, order: () => query, lt: () => query, abortSignal: () => query,
+            range: async () => ({ data: rows[table] }) };
+        return query;
+    } };
+    const load = createMarketingService({ supabase, env: { POSTHOG_PERSONAL_API_KEY: 'unused' }, refreshExcludedIds: async () => new Set(), isExcludedEmail: () => false });
+    const result = await load(30, { coreOnly: true });
+    assert.equal(result.current.signups, 1);
+    assert.equal(result.sources.posthog.status, 'loading');
+    assert.equal(result.sources.revenuecat.data, null);
+});

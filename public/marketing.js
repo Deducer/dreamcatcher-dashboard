@@ -38,8 +38,20 @@ async function loadMarketing() {
     const content = document.getElementById('marketing-content');
     status.textContent = 'Loading growth metrics…';
     content.hidden = true;
+    let coreData = null;
     try {
-        const response = await fetch(`/api/marketing?range=${encodeURIComponent(currentRange)}`);
+        const url = `/api/marketing?range=${encodeURIComponent(currentRange)}`;
+        const coreResponse = await fetch(`${url}&core=1`, { signal: AbortSignal.timeout(15000) });
+        if (request !== marketingRequest) return;
+        if (coreResponse.status === 401) { showLogin(); return; }
+        if (!coreResponse.ok) throw new Error('Unavailable');
+        coreData = await coreResponse.json();
+        if (request !== marketingRequest) return;
+        marketingData = coreData;
+        renderMarketing(coreData);
+        content.hidden = false;
+        status.textContent = 'Product metrics loaded. Checking acquisition, billing, website and email sources…';
+        const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
         if (request !== marketingRequest) return;
         if (response.status === 401) { showLogin(); return; }
         if (!response.ok) throw new Error('Unavailable');
@@ -51,7 +63,14 @@ async function loadMarketing() {
         status.textContent = `${data.days} complete UTC days · ${data.start.slice(0,10)} to ${data.end.slice(0,10)} (end exclusive) · Checked ${new Date(data.generatedAt).toLocaleString()} · ${data.excludedAccounts} internal accounts excluded from product cohorts · ${connected}/${Object.keys(data.sources).length} additional sources available`;
         content.hidden = false;
     } catch {
-        if (request === marketingRequest) status.textContent = 'Growth metrics could not be loaded. Use Refresh to retry. No data is being shown as zero.';
+        if (request !== marketingRequest) return;
+        if (coreData) {
+            for (const source of Object.values(coreData.sources)) source.status = 'unavailable';
+            marketingData = coreData;
+            renderMarketing(coreData);
+            content.hidden = false;
+            status.textContent = 'Product metrics are available. Additional sources could not be loaded; use Refresh to retry.';
+        } else status.textContent = 'Growth metrics could not be loaded. Use Refresh to retry. No data is being shown as zero.';
     }
 }
 
@@ -133,10 +152,14 @@ function renderMarketing(data) {
 }
 
 function sourceStatus(status) {
-    return ({ connected: 'Connected', not_connected: 'Not connected', unavailable: 'Unavailable for this period' })[status] || 'Unknown';
+    return ({ connected: 'Connected', not_connected: 'Not connected', unavailable: 'Unavailable for this period', loading: 'Loading…' })[status] || 'Unknown';
 }
 
 function renderGrowthChannels() {
+    if (marketingData.sources.posthog.status === 'loading') {
+        document.getElementById('growth-channel-table').textContent = 'Loading acquisition sources…';
+        return;
+    }
     const mode = document.getElementById('growth-attribution').value;
     const rows = marketingData.channels[mode];
     const known = rows.filter(row => row.source !== 'Unknown').reduce((sum, row) => sum + row.signups, 0);

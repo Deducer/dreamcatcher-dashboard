@@ -48,8 +48,13 @@ display caution, not a significance test or a minimum experiment size.
 Optional sources fail independently. Unconfigured sources show “Not connected”;
 failed requests show “Unavailable for this period.” A failed Supabase read or account
 exclusion refresh fails the core view rather than publishing partial totals.
-The endpoint is authenticated and cached in memory for five minutes per range;
-the UI shows when the data was fetched. Refresh can reuse that cache.
+The endpoint is authenticated. The page fetches core product metrics first, then
+loads optional sources without hiding the core results. Core reads have a
+12-second deadline, each optional source has an 8-second total deadline, and
+browser requests have a 15-second deadline. Timed-out provider requests are
+aborted. Healthy results are cached for five minutes per range; failed optional
+sources reduce the full-response cache lifetime to 15 seconds so Refresh can
+retry. The UI shows when the data was fetched.
 
 ## Next measurements to connect
 
