@@ -106,10 +106,7 @@ function showDashboard() {
     document.getElementById('dashboard-screen').style.display = 'block';
     initTimeFilter();
     initDetailViews();
-    loadData();
-    loadRecentDreams(true);
-    loadExcludedChip();
-    initReactivation();
+    switchDashboardView('marketing');
 }
 
 async function login() {
@@ -142,7 +139,8 @@ function initTimeFilter() {
             btn.classList.add('active');
             currentRange = btn.dataset.range;
             updatePeriodIndicator();
-            loadData();
+            if (document.getElementById('product-view').hidden) loadMarketing();
+            else loadData();
         });
     });
 

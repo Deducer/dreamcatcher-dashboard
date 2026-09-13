@@ -5,6 +5,10 @@ and Supabase.
 
 ## Features
 
+- **Marketing & growth**: source quality, fixed-window activation, weekly habit,
+  signup-cohort retention, subscription overview, trial cohorts, paywall friction,
+  website traffic, and email delivery health. See [definitions and setup](docs/marketing-dashboard.md).
+
 - **Secure Access**: Simple password authentication.
 - **Real-time Stats**: Connects directly to Supabase to fetch latest data.
 - **Visualizations**: Charts for emotions, tags, recording methods, and activity
@@ -39,7 +43,8 @@ and Supabase.
 
 ## Deployment (production)
 
-- **Host:** Coolify, serving `https://dreamverse.dissonance.cloud`.
+- **Host:** Project Win Coolify, serving `https://dreamverse.projectwin.cloud`
+  after the July 5, 2026 infrastructure cutover. The old Dissonance URL is retired.
 - **Source:** Coolify builds the Docker image from the `main` branch of this
   GitHub repo (`github.com/Deducer/dreamcatcher-dashboard`).
 - **Trigger:** pushing to `main` auto-deploys via a Coolify webhook. A commit

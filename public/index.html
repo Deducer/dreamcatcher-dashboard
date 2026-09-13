@@ -56,6 +56,19 @@
         </nav>
 
         <div class="container">
+            <div class="dashboard-tabs" role="tablist" aria-label="Dashboard views">
+                <button id="marketing-tab" role="tab" aria-selected="true" aria-controls="marketing-view" onclick="switchDashboardView('marketing')">Marketing</button>
+                <button id="product-tab" role="tab" aria-selected="false" aria-controls="product-view" onclick="switchDashboardView('product')">Product &amp; moderation</button>
+            </div>
+            <section id="marketing-view" role="tabpanel" aria-labelledby="marketing-tab">
+                <div class="growth-heading">
+                    <div><h1>Marketing &amp; growth</h1><p>Acquire the right people. Help them build a dream habit.</p></div>
+                    <button class="growth-button" onclick="loadMarketing()">Refresh</button>
+                </div>
+                <p id="marketing-status" role="status" aria-live="polite">Loading growth metrics…</p>
+                <div id="marketing-content"></div>
+            </section>
+            <section id="product-view" role="tabpanel" aria-labelledby="product-tab" hidden>
             <!-- Period indicator -->
             <div class="period-indicator">
                 <span id="period-label">Last 30 days</span>
@@ -224,6 +237,7 @@
                     </div>
                 </div>
             </div>
+            </section>
         </div>
     </div>
 
@@ -239,6 +253,7 @@
         </div>
     </div>
 
+    <script src="marketing.js"></script>
     <script src="dashboard.js"></script>
 </body>
 </html>
