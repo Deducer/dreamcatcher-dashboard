@@ -258,12 +258,20 @@ const authMiddleware = (req, res, next) => {
 
 // Routes
 const acquisition = createAcquisitionService();
+const umami = require('./umami').createUmamiService();
 app.get('/api/acquisition', authMiddleware, async (req, res) => {
     let window;
-    try { window = resolveWindow(req.query); }
+    try {
+        if (req.query.provider && !['umami','vercel'].includes(req.query.provider)) throw Error('Unknown website source.');
+        if (req.query.live === '1' && req.query.provider !== 'vercel') {
+            const now = Date.now(); window = {days:1,start:new Date(now).toISOString().slice(0,10)+'T00:00:00.000Z',end:new Date(now).toISOString(),partialDay:true};
+        } else window = resolveWindow(req.query);
+    }
     catch (error) { return res.status(400).json({ error: error.message }); }
     res.set('Cache-Control', 'no-store');
-    try { res.json(await acquisition(window)); }
+    try {
+        res.json(req.query.provider === 'vercel' ? {...await acquisition(window),provider:'vercel'} : await umami(window));
+    }
     catch { res.status(503).json({ error: 'Acquisition sources could not be loaded. Please retry.' }); }
 });
 const marketing = createMarketingService({ supabase, refreshExcludedIds, isExcludedEmail });

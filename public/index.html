@@ -66,14 +66,15 @@
                     <button class="growth-button" onclick="loadMarketing()">Refresh</button>
                 </div>
                 <div class="acq-date-toolbar">
+                    <label class="acq-preset-label">Website data<select id="acq-source" onchange="changeAcquisitionSource(this.value)"><option value="umami">Umami</option><option value="vercel">Vercel · earlier history</option></select></label>
                     <label class="acq-preset-label">Date range
                         <select id="acq-preset" onchange="changeAcquisitionPreset(this.value)">
-                            <option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d" selected>Last 30 days</option><option value="90d">Last 90 days</option>
+                            <option value="today">Today (so far)</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d" selected>Last 30 days</option><option value="90d">Last 90 days</option>
                             <option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option>
                             <option value="ytd">Year to date</option><option value="last_year">Last year</option><option value="custom">Custom range…</option>
                         </select>
                     </label>
-                    <div class="acq-range-caption"><strong id="acq-range-label"></strong><span>Complete days · UTC · weeks start Monday</span></div>
+                    <div class="acq-range-caption"><strong id="acq-range-label"></strong><span>UTC · weeks start Monday · Today is partial</span></div>
                 </div>
                 <form id="acquisition-date-form" class="acq-date-controls" onsubmit="applyAcquisitionDates(event)" hidden>
                     <label>From <input type="date" id="acq-start" required></label>

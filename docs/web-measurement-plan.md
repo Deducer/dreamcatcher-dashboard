@@ -2,19 +2,14 @@
 
 Reviewed September 13, 2026. Recommendation: select one primary web acquisition
 collector, connect platform exposure separately, then evaluate AppsFlyer for the
-store-to-paid-subscription link. Umami and Clarity collection are installed; unified-dashboard imports and AppsFlyer remain separate work.
+store-to-paid-subscription link. Umami reporting is connected to the dashboard; Clarity remains a linked tool. Mobile attribution remains a separate decision.
 
 ## What is already present
 
-- Vercel Web Analytics is mounted in the marketing site's `0/src/main.tsx` and
-  returns real production visitors, page views, referring hosts and daily data.
-- `0/src/lib/analytics.ts` already attempts named events for App Download Click
-  (store/location), trial-dream actions, partner attribution and scroll depth.
-  Instrumentation in source is not proof that the current plan accepts/reports it.
-- The website includes scoped Umami and consent-gated Clarity collectors. Their
-  reports are linked separately until backend reporting access is configured.
-- Vercel campaign-tag queries return HTTP 402. The current response does not
-  provide the previous 30-day or 90-day periods. Keep unknowns visible.
+- Umami is the primary website collector and dashboard reporting source, including campaign tags and store-link events.
+- Vercel collection is removed from the website. Its earlier reports remain selectable, subject to provider retention; counts are never combined across collectors.
+- Clarity remains an optional, consent-gated landing-page tool, linked separately.
+- Store-link clicks are actions, not confirmed downloads or unique people.
 
 ## Collection installed September 13, 2026
 
@@ -29,12 +24,7 @@ choice. Advertising storage is denied, the trial container is masked, and record
 stops on dream-form interaction. The footer supports withdrawal. The privacy
 policy states the marketing website's adult audience separately from app ratings.
 
-**Next: reporting access.** The dashboard still reads Vercel; collector IDs do not
-grant read access. Obtain a dedicated reporting credential, confirm site scope,
-retention/backups and API compatibility, then import daily totals, referrers,
-campaigns and event breakdowns with the collection start date. Do not persist an
-admin browser session as a backend credential. The dashboard links native reports
-until this connection is completed.
+**Reporting connected.** A dedicated `dreamcatcher-dashboard` view-only account belongs to the DreamCatcher reporting team. It can read only this site; admin and unrelated-site API requests were verified denied. Credentials are in Doppler `dreamcatcher/prd` and Coolify runtime variables, never the browser. Collection coverage starts at the first verified accepted QA visit, September 13 at 19:32:01 UTC. Today is partial; earlier dates are unavailable, not zero. Umami UTM reports return up to 50 tags and no visitor count. Native reports remain available. Retention and backups need a separate operational review.
 
 **Alternative: Vercel Pro plus Web Analytics Plus.** Fewer integration changes,
 but verify total account cost first. The published Plus price is an additional
@@ -79,3 +69,7 @@ budget and acquisition-cost target from actual net subscription economics.
 No newly installed tool can recreate the history it never collected. Keep
 collection coverage visible, and do not add cross-platform reach figures into
 one supposedly unique audience.
+
+## Attribution evaluation updated September 13
+
+A free trial is now acceptable. Adjust Base is the leading trial candidate: its published offer covers up to 1,500 monthly conversions for the first year with Core reporting APIs. Confirm account eligibility, overage handling, and the RevenueCat event round trip before SDK work. AppsFlyer is the fallback; its 30-day premium-feature/API trial begins at signup, so prepare the test first. Tenjin offers 2,000 paid attributed installs monthly but bills overages; no zero-cost hard stop has been confirmed. OpenAI currently documents AppsFlyer and Adjust as mobile measurement partners. No vendor account, SDK or campaign is created by this release.

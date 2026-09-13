@@ -6,7 +6,12 @@ let customAcquisitionRange = null;
 let trafficMetric = 'pageviews';
 let trafficStyle = 'bars';
 let trafficChart = null;
-let acquisitionPreset = '30d';
+let acquisitionPreset = 'today';
+let acquisitionProvider = 'umami';
+function changeAcquisitionSource(value) {
+    acquisitionProvider=value; customAcquisitionRange=null; acquisitionPreset=value==='umami'?'today':'30d';
+    document.getElementById('acquisition-date-form').hidden=true; loadMarketing();
+}
 
 function selectedAcquisitionDates() {
     return customAcquisitionRange || presetDates(acquisitionPreset) || presetDates('30d');
@@ -48,7 +53,7 @@ const growthEscape = value => String(value ?? '').replace(/[&<>"']/g, char => ({
 const growthNumber = value => Number.isFinite(value) ? value.toLocaleString('en-US', { maximumFractionDigits: 1 }) : '—';
 const growthPercent = metric => metric?.percent == null ? '—' : `${metric.percent.toFixed(1)}%`;
 const growthSample = metric => metric?.eligible ? `${metric.count} / ${metric.eligible} eligible people${metric.eligible < 30 ? ' · small sample' : ''}` : 'No mature cohort yet';
-const sourceStatus = status => ({ connected: 'Connected', not_connected: 'Not connected', unavailable: 'Unavailable for this period', loading: 'Loading…', plan_required: 'Plan upgrade required' })[status] || 'Not connected';
+const sourceStatus = status => ({ connected: 'Connected', not_connected: 'Not connected', unavailable: 'Unavailable for this period', loading: 'Loading…', plan_required: 'Plan upgrade required', not_collected: 'Before Umami collection began', not_comparable: 'No comparable full period' })[status] || 'Not connected';
 
 function switchDashboardView(view) {
     const marketing = view === 'marketing';
@@ -76,11 +81,11 @@ function switchDashboardView(view) {
 async function loadMarketing() {
     const request = ++marketingRequest;
     const dates = selectedAcquisitionDates();
-    const query = new URLSearchParams(dates).toString();
+    const query = new URLSearchParams({...dates,provider:acquisitionProvider,...(acquisitionPreset==='today'?{live:'1'}:{})}).toString();
     const prettyDate = value => new Date(value+'T00:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'});
     document.getElementById('acq-range-label').textContent = `${prettyDate(dates.start)} – ${prettyDate(dates.end)}`;
     document.getElementById('acq-preset').value = acquisitionPreset;
-    for (const option of document.querySelectorAll('#acq-preset option')) if (option.value !== 'custom') option.disabled = !presetDates(option.value);
+    for (const option of document.querySelectorAll('#acq-preset option')) if (option.value !== 'custom') option.disabled = !presetDates(option.value) || (option.value==='today' && acquisitionProvider==='vercel');
     document.getElementById('acq-date-error').hidden = true;
     for (const key of ['start','end']) {
         const input = document.getElementById(`acq-${key}`);
@@ -111,7 +116,7 @@ async function loadMarketing() {
                 acquisitionData = data;
                 renderAcquisition();
                 const connected = Object.values(data.sources).filter(s => s.status === 'connected').length;
-                document.getElementById('marketing-status').textContent = `${data.days} complete UTC days · ${data.start.slice(0,10)} through ${new Date(Date.parse(data.end)-1).toISOString().slice(0,10)} · Checked ${new Date(data.generatedAt).toLocaleString()} · ${connected}/${Object.keys(data.sources).length} website reports available`;
+                document.getElementById('marketing-status').textContent = `${data.provider === 'umami' ? 'Umami' : 'Vercel history'} · ${data.partialDay ? 'Today so far (partial day)' : data.days+' complete UTC days'} · ${data.start.slice(0,10)} through ${new Date(Date.parse(data.end)-1).toISOString().slice(0,10)} · Checked ${new Date(data.generatedAt).toLocaleString()} · ${connected}/${Object.keys(data.sources).length} reports available`;
             } catch {
                 if (request !== marketingRequest) return;
                 acquisitionData = { sources: Object.fromEntries(['totals','previous','referrers','daily','pages','campaigns','taggedSources'].map(key => [key, {status:'unavailable',data:null}])) };
@@ -121,6 +126,7 @@ async function loadMarketing() {
         })(),
         (async () => {
             try {
+                if (acquisitionPreset==='today') { document.getElementById('growth-quality-content').textContent='App and subscription cohorts use complete days. Choose Yesterday or a longer completed period to review outcomes.'; return; }
                 const response = await fetch(`/api/marketing?${query}&core=1`, {signal:AbortSignal.timeout(15000)});
                 if (response.status === 401) { if (request === marketingRequest) showLogin(); return; }
                 if (!response.ok) throw Error('Core unavailable');
@@ -147,7 +153,9 @@ function growthCard(label, value, detail, comparison) {
     return `<article class="metric-card"><h3 class="metric-label">${growthEscape(label)}</h3><div class="metric-value">${growthEscape(value)}</div><p class="growth-detail">${growthEscape(detail)}</p>${comparison ? `<p class="growth-comparison">${growthEscape(comparison)}</p>` : ''}</article>`;
 }
 function reportNotice(source, subject) {
-    if (source.status === 'plan_required') return `<div class="acq-empty"><strong>Campaign tags need Vercel Web Analytics Plus</strong><p>Vercel Web Analytics is installed, but this plan does not expose campaign tags. Umami now collects campaign tags and store-link clicks separately; importing those reports here is the next connection. <a href="#web-measurement-plan">See the measurement setup plan</a>.</p></div>`;
+    if (source.status === 'not_collected') return '<div class="acq-empty"><strong>No Umami coverage for these dates</strong><p>Collection began September 13, 2026. Choose Today to see new traffic, or Vercel · earlier history for previous records. Earlier days are unknown, not zero.</p></div>';
+
+    if (source.status === 'plan_required') return `<div class="acq-empty"><strong>Campaign tags need Vercel Web Analytics Plus</strong><p>The historical Vercel plan does not expose campaign tags. Select Umami to see campaign tags and store-link clicks collected since September 13, 2026. <a href="#web-measurement-plan">See the measurement setup plan</a>.</p></div>`;
     return `<div class="acq-empty"><strong>${sourceStatus(source.status)}</strong><p>${source.status === 'loading' ? `Checking ${subject}…` : `${subject} is not available for this window. Try 7D or 30D, or Refresh. Missing data is not zero.`}</p></div>`;
 }
 function trafficTable(source, title, emptyLabel, total) {
@@ -183,15 +191,16 @@ function renderAcquisition() {
     ];
     destroyTrafficChart();
     document.getElementById('acquisition-content').innerHTML = `
+        ${acquisitionData?.provider==='umami'?`<p class="acq-coverage">Umami collection started September 13, 2026 at 19:32 UTC. ${acquisitionData.partialCoverage?'This selection includes time before collection; only the covered portion is reported. ':''}Vercel history is separate and is never added to these counts. Campaigns labeled analytics_setup are validation traffic.</p>`:acquisitionData?.provider==='vercel'?'<p class="acq-coverage">Earlier Vercel records, subject to provider retention. New website collection uses Umami. Visitor definitions and route coverage differ between collectors.</p>':''}
         <div class="metrics-grid acq-kpis">
-            ${growthCard('Website visitors',growthNumber(totals.data?.visitors),'thedreamcatcher.ai · production website',comparison('visitors'))}
+            ${growthCard('Website visitors',growthNumber(totals.data?.visitors),'thedreamcatcher.ai · '+(acquisitionData?.provider==='umami'?'Umami':'Vercel'),comparison('visitors'))}
             ${growthCard('Website page views',growthNumber(total),'Recorded website exposure, including repeat views',comparison('pageviews'))}
             ${growthCard('Named referrers',growthNumber(names),'Distinct referrer hosts in the reported rows',referrers.status === 'connected' ? `${growthNumber(direct)} views have no reported referrer` : sourceStatus(referrers.status))}
         </div>
         <section class="chart-card growth-section"><div class="growth-section-heading"><div><p class="acq-eyebrow">01 / WEBSITE DISCOVERY</p><h2 class="chart-title">Where traffic comes from</h2></div><span class="acq-badge">${sourceStatus(referrers.status)}</span></div>
             <p class="growth-detail">Referrer websites recorded on page views. Direct / unknown can include bookmarks, untagged links, private shares and sources hidden by the browser.</p>
             ${trafficTable(referrers,'Referrer','Direct / unknown',total)}
-            <p class="growth-detail">Visitors can appear under more than one referrer, so rows must not be summed into unique reach. “Others” is the provider’s remaining groups. Referral visits are not social impressions or ad clicks.</p>
+            <p class="growth-detail">Visitors can appear under more than one referrer, so rows must not be summed into unique reach. A dash means visitor counts are not supplied for that row; page views remain available. “Others” is the provider’s remaining groups. Referral visits are not social impressions or ad clicks.</p>
         </section>
         <div class="acq-traffic-stack"><section class="chart-card acq-traffic-card"><p class="acq-eyebrow">TRAFFIC OVER TIME</p><h2 class="chart-title">Website traffic over time</h2>
             <div class="acq-chart-controls"><label>Metric <select id="traffic-metric" onchange="trafficMetric=this.value;renderTrafficTrend()"><option value="pageviews" ${trafficMetric==='pageviews'?'selected':''}>Page views</option><option value="visitors" ${trafficMetric==='visitors'?'selected':''}>Visitors per day</option></select></label><label>Chart <select id="traffic-style" onchange="trafficStyle=this.value;renderTrafficTrend()"><option value="bars" ${trafficStyle==='bars'?'selected':''}>Bars</option><option value="line" ${trafficStyle==='line'?'selected':''}>Line</option></select></label></div>
@@ -208,17 +217,26 @@ function renderAcquisition() {
         <section class="chart-card growth-section"><p class="acq-eyebrow">03 / CAMPAIGN PERFORMANCE</p><h2 class="chart-title">Which campaigns bring people here?</h2>
             <p class="growth-detail">Tagged website traffic will appear here when available. Installs, spend and revenue by campaign remain unconnected.</p>
             ${trafficTable(campaigns,'Campaign tag','No campaign tag',total)}
+            ${acquisitionData?.provider==='umami'?'<p class="growth-detail">Top 50 tags by page views. Umami does not return unique visitors for these tag summaries; they are shown as —.</p>':''}
             ${tags.status === 'connected' ? `<details class="acq-daily-values"><summary>View tagged sources</summary>${trafficTable(tags,'Source tag','No source tag',total)}</details>` : ''}
         </section>
+        ${renderWebsiteEvents(sources)}
         <section class="chart-card growth-section acq-next" id="web-measurement-plan"><h2 class="chart-title">Measurement setup &amp; next connections</h2><div class="acq-steps">
-            <div><strong>Web analytics setup</strong><p>Vercel supplies the reports above. Self-hosted Umami now collects campaign tags and App Store / Google Play link clicks on the marketing site. <a href="https://analytics.dissonance.cloud/websites/3a631133-dde5-406e-8bfb-8fa32b7a7afc" target="_blank" rel="noopener noreferrer">Open Umami</a>. Next: connect a dedicated reporting credential to bring its data here.</p></div>
+            <div><strong>Web analytics setup</strong><p>Umami now supplies website visits, traffic sources, campaign tags and App Store / Google Play link clicks. Vercel collection has been removed from the website; earlier records remain a separate source. <a href="https://analytics.dissonance.cloud/websites/3a631133-dde5-406e-8bfb-8fa32b7a7afc" target="_blank" rel="noopener noreferrer">Open Umami</a>. The dashboard uses a dedicated account with read-only access to DreamCatcher.</p></div>
             <div><strong>Landing-page behavior</strong><p>Microsoft Clarity is installed for optional, consented 18+ landing-page heatmaps and recordings. Dream entry/results are masked; recording stops on dream-form interaction. <a href="https://clarity.microsoft.com/projects/view/yht2eghkun/dashboard" target="_blank" rel="noopener noreferrer">Open Clarity</a>. Reports require processing time and are not imported here.</p></div>
             <div><strong>Search discovery</strong><p>Connect Google Search Console for queries, impressions, clicks and search position. Website referrers alone cannot show how often we appear in search.</p></div>
             <div><strong>Social exposure</strong><p>Connect Instagram and TikTok views, reach and engagement by post. Add creator placements as identifiable campaigns.</p></div>
-            <div><strong>Install attribution</strong><p>Evaluate AppsFlyer pricing and data access. Verify tracked links through both stores before treating installs as attributed.</p></div>
+            <div><strong>Install attribution</strong><p>Evaluate Adjust’s free trial and AppsFlyer’s API trial. Verify tracked links through both stores before treating installs as attributed.</p></div>
             <div><strong>Paid performance</strong><p>Connect ad impressions, clicks and spend. Match first paid subscriptions to campaigns before calculating acquisition cost.</p></div>
-        </div><p class="growth-detail">Umami and Clarity collection began September 13, 2026; their reports are available in the linked tools, subject to consent and processing. This dashboard still uses Vercel website data. AppsFlyer remains a proposed addition. New tools cannot recreate missing history. Product outcomes are available below as a quality check.</p></section>`;
+        </div><p class="growth-detail">Umami and Clarity collection began September 13, 2026; their reports are available in the linked tools, subject to consent and processing. This dashboard defaults to Umami; select Vercel for earlier history. Mobile attribution remains a proposed addition. New tools cannot recreate missing history. Product outcomes are available below as a quality check.</p></section>`;
     renderTrafficTrend();
+}
+
+function renderWebsiteEvents(sources) {
+    if (acquisitionData?.provider !== 'umami') return '';
+    const events=sources.events || {status:'loading'}, stores=sources.storeClicks || {status:'loading'};
+    const render=(source,heading)=>source.status==='connected'?`<div class="growth-table-wrap"><table class="growth-table"><thead><tr><th>${heading}</th><th>Recorded actions</th></tr></thead><tbody>${source.data.map(row=>`<tr><th>${growthEscape(({ios:'App Store',android:'Google Play'})[row.value] || row.value)}</th><td>${growthNumber(row.count)}</td></tr>`).join('') || '<tr><td colspan="2">No recorded actions in this period.</td></tr>'}</tbody></table></div>`:reportNotice(source,heading);
+    return `<section class="chart-card growth-section"><p class="acq-eyebrow">04 / WEBSITE ACTIONS</p><h2 class="chart-title">Store clicks and website events</h2><p class="growth-detail">These are recorded actions, including repeat clicks—not confirmed downloads, app trials or unique people. Trial Dream events refer to the free website demo.</p>${render(stores,'Store-link destination')}<details class="acq-daily-values"><summary>All tracked website events</summary>${render(events,'Event')}</details></section>`;
 }
 
 function renderTrafficTrend() {

@@ -137,3 +137,13 @@ Exact tables display the calendar date only (`2026-09-01`), with UTC in the head
 Source retention still limits available history; a date picker cannot recover
 unavailable data. The live measurement plan now links every acquisition gap to
 specific setup work rather than merely naming an unavailable feature.
+
+## Umami primary reporting — September 13, 2026
+
+`GET /api/acquisition` defaults to Umami; `provider=vercel` selects separate earlier reports. `live=1` selects today through now in UTC; complete-day presets and custom ranges retain the existing exclusive-end API contract. App/subscription cohorts remain complete-day only. Provider adapters convert the exclusive end to Umami's inclusive endAt by subtracting one millisecond.
+
+The server authenticates with UMAMI_URL, UMAMI_WEBSITE_ID, UMAMI_USERNAME, UMAMI_PASSWORD and UMAMI_COLLECTION_START from runtime secrets. Tokens refresh after 30 minutes or once after a 401. Independent reports fail separately. Results cache for 60 seconds, failures for 10 seconds; no secret is returned to clients.
+
+Reports: stats, expanded path/referrer metrics (paginated), daily pageviews/visitors (UTC chunks up to 90 days), UTM campaign/source reports (top 50, pageviews only), events, and App Download Click store values. Missing unique-visitor counts remain null. Direct pageviews are the remainder after complete referrer pagination; daily visitors are not summed into period reach. Event counts include repeats and do not establish installs.
+
+Reporting starts September 13, 2026 at 19:32:01 UTC, the first verified accepted QA visit. Dates before coverage return not_collected. Partial periods cannot receive a misleading previous-period comparison. Vercel history is retained as a separate provider and remains subject to its retention policy.
