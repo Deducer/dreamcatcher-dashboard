@@ -867,3 +867,6 @@ body {
 .acq-chart-canvas { position:relative; height:360px; width:100%; margin-top:18px; }
 .acq-traffic-card .acq-chart-controls { margin-bottom:12px; }
 @media(max-width:700px) { .acq-date-toolbar { gap:14px; padding:16px; } .acq-preset-label,#acq-preset { width:100%; } .acq-chart-canvas { height:300px; } }
+
+.acq-preset-label select { color-scheme:dark; color:var(--text-primary); background:var(--bg-elevated); border:1px solid #4c4756; border-radius:7px; padding:10px; font:inherit; }
+.acq-coverage { padding:14px 18px; border:1px solid #40374e; border-radius:10px; background:#1b1722; color:#c9c1d5; font-size:.85rem; line-height:1.6; margin:18px 0; }

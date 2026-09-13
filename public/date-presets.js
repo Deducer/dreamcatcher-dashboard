@@ -6,6 +6,7 @@
         const monday = today - ((date.getUTCDay()+6)%7)*DAY;
         let start, end = today;
         const rolling = {'yesterday':1,'7d':7,'30d':30,'90d':90};
+        if (preset === 'today') return {start:date.toISOString().slice(0,10),end:date.toISOString().slice(0,10)};
         if (rolling[preset]) start = today-rolling[preset]*DAY;
         else if (preset === 'this_week') start = monday;
         else if (preset === 'last_week') { start = monday-7*DAY; end = monday; }
