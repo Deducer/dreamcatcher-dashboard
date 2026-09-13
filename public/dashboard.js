@@ -138,6 +138,7 @@ function initTimeFilter() {
             buttons.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             currentRange = btn.dataset.range;
+            customAcquisitionRange = null;
             updatePeriodIndicator();
             if (document.getElementById('product-view').hidden) loadMarketing();
             else loadData();

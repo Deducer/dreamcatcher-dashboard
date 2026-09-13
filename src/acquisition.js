@@ -5,6 +5,22 @@ function acquisitionWindow(days, now = Date.now()) {
     return { days, start: new Date(end - days * DAY).toISOString(), end: new Date(end).toISOString() };
 }
 
+// UI dates are inclusive. Provider queries use a half-open UTC interval.
+function resolveWindow(query, now = Date.now()) {
+    if (query.start !== undefined || query.end !== undefined) {
+        const valid = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+        if (!valid(query.start) || !valid(query.end)) throw Error('Choose valid start and end dates.');
+        const start = Date.parse(query.start), end = Date.parse(query.end) + DAY;
+        const days = (end - start) / DAY;
+        if (days < 1 || days > 90) throw Error('Choose between 1 and 90 days.');
+        if (end > Date.parse(acquisitionWindow(1, now).end)) throw Error('Choose an end date no later than yesterday (UTC).');
+        return { days, start: new Date(start).toISOString(), end: new Date(end).toISOString() };
+    }
+    const days = { '7d': 7, '30d': 30, '90d': 90 }[query.range || '30d'];
+    if (!Number.isInteger(days)) throw Error('Choose 7d, 30d, 90d, or a custom date range.');
+    return acquisitionWindow(days, now);
+}
+
 function normalizeReport(result, window, dimension) {
     if (Date.parse(result.query?.since) !== Date.parse(window.start) || Date.parse(result.query?.until) !== Date.parse(window.end)) throw new Error('Window mismatch');
     const valid = row => Number.isFinite(row?.visitors) && row.visitors >= 0 && Number.isFinite(row?.pageviews) && row.pageviews >= 0;
@@ -41,8 +57,9 @@ function createAcquisitionService({ env = process.env, request = fetch, now = Da
             return { status: 'connected', data, fetchedAt: new Date(now()).toISOString() };
         } catch { return { status: 'unavailable', data: null }; }
     }
-    return async days => {
-        const window = acquisitionWindow(days, now());
+    return async selection => {
+        const window = typeof selection === 'number' ? acquisitionWindow(selection, now()) : selection;
+        const { days } = window;
         const key = `${days}:${window.end}`;
         const cached = cache.get(key);
         if (cached && now() - cached.at < cached.ttl) return cached.promise;
@@ -62,4 +79,4 @@ function createAcquisitionService({ env = process.env, request = fetch, now = Da
     };
 }
 
-module.exports = { acquisitionWindow, normalizeReport, createAcquisitionService };
+module.exports = { acquisitionWindow, resolveWindow, normalizeReport, createAcquisitionService };

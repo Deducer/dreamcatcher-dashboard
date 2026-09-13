@@ -96,3 +96,21 @@ test('core metrics do not wait for or contact optional external providers', asyn
     assert.equal(result.sources.posthog.status, 'loading');
     assert.equal(result.sources.revenuecat.data, null);
 });
+
+test('historical custom outcomes use the selected end and do not reuse another window cache', async () => {
+    const { createMarketingService } = require('../src/marketing');
+    const rows = {profiles:[{id:'a',created_at:'2026-09-01T12:00:00Z'}],dreams:[{id:'d',user_id:'a',created_at:'2026-09-04T12:00:00Z'}]};
+    const cutoffs = [];
+    const supabase = { from: table => {
+        const query = {select:()=>query,order:()=>query,lt:(_column,end)=>{cutoffs.push(end);return query;},abortSignal:()=>query,range:async()=>({data:rows[table]})};
+        return query;
+    }};
+    const load=createMarketingService({supabase,env:{},refreshExcludedIds:async()=>new Set(),isExcludedEmail:()=>false});
+    const early=await load(3,{end:'2026-09-04T00:00:00.000Z',coreOnly:true});
+    const later=await load(3,{end:'2026-09-07T00:00:00.000Z',coreOnly:true});
+    assert.equal(early.current.signups,1);
+    assert.equal(later.current.signups,0);
+    assert.equal(early.start,'2026-09-01T00:00:00.000Z');
+    assert.equal(later.start,'2026-09-04T00:00:00.000Z');
+    assert.deepEqual(cutoffs,['2026-09-04T00:00:00.000Z','2026-09-07T00:00:00.000Z']);
+});

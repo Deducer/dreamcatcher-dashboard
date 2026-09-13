@@ -53,3 +53,28 @@ test('unconfigured reports are unknown, not zero; credentials are never returned
     const result = await service(7);
     for (const source of Object.values(result.sources)) assert.deepEqual(source, { status: 'not_connected', data: null });
 });
+
+test('custom date ranges include the entire last day and validate calendar boundaries', () => {
+    const { resolveWindow } = require('../src/acquisition');
+    const now = Date.parse('2026-09-13T19:00:00Z');
+    assert.deepEqual(resolveWindow({start:'2026-09-01',end:'2026-09-01'}, now), {days:1,start:'2026-09-01T00:00:00.000Z',end:'2026-09-02T00:00:00.000Z'});
+    for (const query of [
+        {start:'2026-02-30',end:'2026-03-01'}, {start:'2026-09-02',end:'2026-09-01'},
+        {start:'2026-09-01'}, {start:'2026-09-01',end:'2026-09-13'},
+        {start:'2026-01-01',end:'2026-09-12'}, {start:['2026-09-01'],end:'2026-09-02'},
+    ]) assert.throws(() => resolveWindow(query, now));
+    assert.equal(resolveWindow({range:'7d'}, now).days, 7);
+});
+
+test('custom acquisition requests retain both dates, including equal-duration cache separation', async () => {
+    const { resolveWindow } = require('../src/acquisition');
+    const now = Date.parse('2026-09-13T19:00:00Z');
+    const windows = [{start:'2026-09-01',end:'2026-09-03'},{start:'2026-09-04',end:'2026-09-06'}].map(q=>resolveWindow(q,now));
+    const requested = [];
+    const service = createAcquisitionService({env:{VERCEL_TOKEN:'test',VERCEL_PROJECT_ID:'test'},request:async url=>{ requested.push(new URL(url).searchParams);return {status:402,ok:false}; }});
+    for (const window of windows) { const result=await service(window); assert.equal(result.start,window.start); assert.equal(result.end,window.end); }
+    assert.equal(requested.length,14);
+    assert.equal(requested[0].get('since'),windows[0].start);
+    assert.equal(requested[7].get('since'),windows[1].start);
+    assert.equal(requested[2].get('until'),'2026-09-03T23:59:59.999Z');
+});
