@@ -12,7 +12,7 @@ function resolveWindow(query, now = Date.now()) {
         if (!valid(query.start) || !valid(query.end)) throw Error('Choose valid start and end dates.');
         const start = Date.parse(query.start), end = Date.parse(query.end) + DAY;
         const days = (end - start) / DAY;
-        if (days < 1 || days > 90) throw Error('Choose between 1 and 90 days.');
+        if (days < 1 || days > 366) throw Error('Choose between 1 and 366 days.');
         if (end > Date.parse(acquisitionWindow(1, now).end)) throw Error('Choose an end date no later than yesterday (UTC).');
         return { days, start: new Date(start).toISOString(), end: new Date(end).toISOString() };
     }
@@ -28,7 +28,7 @@ function normalizeReport(result, window, dimension) {
         if (!valid(result.data)) throw new Error('Invalid totals');
         return { visitors: result.data.visitors, pageviews: result.data.pageviews };
     }
-    if (!Array.isArray(result.data) || result.data.length > 101 || !result.data.every(valid)) throw new Error('Invalid report');
+    if (!Array.isArray(result.data) || result.data.length > (dimension === 'day' ? 366 : 101) || !result.data.every(valid)) throw new Error('Invalid report');
     return result.data.map(row => {
         const value = row[dimension === 'day' ? 'timestamp' : dimension];
         if (typeof value !== 'string' && value !== null) throw new Error('Invalid dimension');
@@ -57,6 +57,18 @@ function createAcquisitionService({ env = process.env, request = fetch, now = Da
             return { status: 'connected', data, fetchedAt: new Date(now()).toISOString() };
         } catch { return { status: 'unavailable', data: null }; }
     }
+    async function dailyReport(window) {
+        // Vercel caps aggregate results at 100 rows. Query non-overlapping
+        // chunks so a full year never silently loses daily observations.
+        const chunks = [];
+        for (let start = Date.parse(window.start); start < Date.parse(window.end); start += 90 * DAY) {
+            chunks.push({ start: new Date(start).toISOString(), end: new Date(Math.min(start + 90 * DAY, Date.parse(window.end))).toISOString() });
+        }
+        const results = await Promise.all(chunks.map(chunk => report(chunk, 'day')));
+        const failed = results.find(result => result.status !== 'connected');
+        if (failed) return failed;
+        return { status: 'connected', data: results.flatMap(result => result.data).sort((a, b) => a.value.localeCompare(b.value)), fetchedAt: new Date(now()).toISOString() };
+    }
     return async selection => {
         const window = typeof selection === 'number' ? acquisitionWindow(selection, now()) : selection;
         const { days } = window;
@@ -67,7 +79,7 @@ function createAcquisitionService({ env = process.env, request = fetch, now = Da
         const entry = { at: now(), ttl: 5 * 60000 };
         entry.promise = Promise.all([
             report(window), report(previous), report(window, 'referrerHostname'),
-            report(window, 'day'), report(window, 'requestPath'), report(window, 'utmCampaign'), report(window, 'utmSource'),
+            dailyReport(window), report(window, 'requestPath'), report(window, 'utmCampaign'), report(window, 'utmSource'),
         ]).then(([totals, previous, referrers, daily, pages, campaigns, taggedSources]) => {
             const sources = { totals, previous, referrers, daily, pages, campaigns, taggedSources };
             if (Object.values(sources).some(s => s.status === 'unavailable')) entry.ttl = 15000;

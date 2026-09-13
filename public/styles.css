@@ -854,3 +854,16 @@ body {
 .acq-line-chart { display: block; width: 100%; height: 180px; margin: 26px 0 10px; border-bottom: 1px solid var(--text-muted); }
 #web-measurement-plan { scroll-margin-top: 100px; }
 @media(max-width:700px) { .acq-date-controls label { flex: 1; min-width: 140px; } .acq-date-controls input { width: 100%; min-width: 0; box-sizing: border-box; } .acq-line-chart { height: 130px; } }
+
+/* Standard date presets and a full-width Chart.js traffic report. */
+.acq-date-toolbar { display:flex; flex-wrap:wrap; gap:24px; align-items:center; padding:18px 20px; margin:20px 0; background:var(--bg-card,#191919); border:1px solid rgba(255,255,255,.09); border-radius:12px; }
+.acq-preset-label { display:grid; gap:6px; font-size:.75rem; color:var(--text-secondary); }
+#acq-preset { min-width:190px; color-scheme:dark; background:var(--bg-elevated); color:var(--text-primary); border:1px solid #4b4556; border-radius:7px; padding:10px 34px 10px 12px; font:inherit; font-size:.9rem; }
+.acq-range-caption { display:grid; gap:5px; }
+.acq-range-caption strong { font-size:.95rem; font-weight:500; }
+.acq-range-caption span { font-size:.75rem; color:var(--text-secondary); }
+.acq-date-controls[hidden] { display:none; }
+.acq-traffic-stack { display:grid; grid-template-columns:minmax(0,1fr); gap:24px; margin-top:24px; }
+.acq-chart-canvas { position:relative; height:360px; width:100%; margin-top:18px; }
+.acq-traffic-card .acq-chart-controls { margin-bottom:12px; }
+@media(max-width:700px) { .acq-date-toolbar { gap:14px; padding:16px; } .acq-preset-label,#acq-preset { width:100%; } .acq-chart-canvas { height:300px; } }
