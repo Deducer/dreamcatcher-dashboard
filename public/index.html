@@ -65,6 +65,13 @@
                     <div><p class="acq-eyebrow">DREAMCATCHER / MARKETING</p><h1>How people find us</h1><p>Exposure, traffic sources, and the campaigns that bring people to DreamCatcher.</p></div>
                     <button class="growth-button" onclick="loadMarketing()">Refresh</button>
                 </div>
+                <form id="acquisition-date-form" class="acq-date-controls" onsubmit="applyAcquisitionDates(event)">
+                    <label>From <input type="date" id="acq-start" required></label>
+                    <label>Through <input type="date" id="acq-end" required></label>
+                    <button class="growth-button" type="submit">Apply dates</button>
+                    <span class="growth-detail">Inclusive UTC dates · up to 90 complete days · available history varies by source</span>
+                    <p id="acq-date-error" role="alert" hidden></p>
+                </form>
                 <p id="marketing-status" role="status" aria-live="polite">Loading acquisition sources…</p>
                 <div id="marketing-content"></div>
             </section>

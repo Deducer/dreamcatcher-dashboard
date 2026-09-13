@@ -42,10 +42,10 @@ function createMarketingService({ supabase, env = process.env, refreshExcludedId
     const cache = new Map();
     const coreCache = new Map();
     const chartOptions = new Map();
-    async function loadCore(days, signal) {
+    async function loadCore(days, endAt, signal) {
         // Complete UTC days keep the web, product and billing windows comparable.
         // Point-in-time billing overview metrics are explicitly labelled separately.
-        const now = Date.parse(new Date().toISOString().slice(0, 10));
+        const now = Date.parse(endAt);
         const excluded = await refreshExcludedIds();
         const [allProfiles, allDreams] = await Promise.all([
             readAll(() => supabase.from('profiles').select('id,created_at').order('id').abortSignal(signal)),
@@ -58,15 +58,17 @@ function createMarketingService({ supabase, env = process.env, refreshExcludedId
         const end = new Date(now).toISOString();
         return { profiles, dreams, start, end, now, excluded };
     }
-    async function getCore(days) {
-        const cached = coreCache.get(days);
+    async function getCore(days, endAt) {
+        const key = `${days}:${endAt}`;
+        const cached = coreCache.get(key);
         if (cached && Date.now() - cached.at < 5 * 60000) return cached.promise;
-        const promise = withDeadline(signal => loadCore(days, signal), 12000).catch(error => { coreCache.delete(days); throw error; });
-        coreCache.set(days, { at: Date.now(), promise });
+        const promise = withDeadline(signal => loadCore(days, endAt, signal), 12000).catch(error => { coreCache.delete(key); throw error; });
+        if (coreCache.size >= 12) coreCache.delete(coreCache.keys().next().value);
+        coreCache.set(key, { at: Date.now(), promise });
         return promise;
     }
-    async function collect(days) {
-        const { profiles, dreams, start, end, now, excluded } = await getCore(days);
+    async function collect(days, endAt) {
+        const { profiles, dreams, start, end, now, excluded } = await getCore(days, endAt);
 
         const ph = async (query, signal) => {
             const result = await jsonRequest(`https://us.posthog.com/api/projects/${encodeURIComponent(env.POSTHOG_PROJECT_ID || '452799')}/query/`, env.POSTHOG_PERSONAL_API_KEY,
@@ -143,21 +145,23 @@ function createMarketingService({ supabase, env = process.env, refreshExcludedId
         if (posthog.data) delete posthog.data.attribution;
         return { ...metrics, generatedAt: new Date().toISOString(), excludedAccounts: excluded.size, sources: { posthog, revenuecat, web, email, billingCohorts } };
     }
-    return async (days, { coreOnly = false } = {}) => {
+    return async (days, { coreOnly = false, end: endAt = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z' } = {}) => {
+        const key = `${days}:${endAt}`;
         if (coreOnly) {
-            const { profiles, dreams, now, excluded } = await getCore(days);
+            const { profiles, dreams, now, excluded } = await getCore(days, endAt);
             return { ...buildMarketingMetrics(profiles, dreams, days, now), generatedAt: new Date().toISOString(), excludedAccounts: excluded.size,
                 sources: Object.fromEntries(['posthog', 'revenuecat', 'web', 'email', 'billingCohorts'].map(name => [name, { status: 'loading', data: null }])) };
         }
-        const cached = cache.get(days);
+        const cached = cache.get(key);
         if (cached && Date.now() - cached.at < cached.ttl) return cached.promise;
         const entry = { at: Date.now(), ttl: 5 * 60000 };
-        const promise = collect(days).then(data => {
+        const promise = collect(days, endAt).then(data => {
             if (Object.values(data.sources).some(source => source.status === 'unavailable')) entry.ttl = 15000;
             return data;
-        }).catch(error => { cache.delete(days); throw error; });
+        }).catch(error => { cache.delete(key); throw error; });
         entry.promise = promise;
-        cache.set(days, entry);
+        if (cache.size >= 12) cache.delete(cache.keys().next().value);
+        cache.set(key, entry);
         return promise;
     };
 }
