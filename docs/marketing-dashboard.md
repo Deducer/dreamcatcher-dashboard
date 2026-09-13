@@ -119,20 +119,20 @@ DreamCatcher targets. Local source references: `src/marketing.js`,
 
 ## Custom dates and traffic charts
 
-Marketing has inclusive From/Through date inputs, limited to 1–90 complete UTC
+Marketing has calendar presets and inclusive custom From/Through date inputs, limited to 1–366 complete UTC
 calendar days ending by yesterday. Both `/api/acquisition` and `/api/marketing`
 accept `start=YYYY-MM-DD&end=YYYY-MM-DD`; both inputs are required. Invalid dates,
-reversed windows, future/today end dates and windows over 90 days return HTTP 400.
+reversed windows, future/today end dates and windows over 366 days return HTTP 400.
 The server translates the inclusive end to the following UTC midnight for all
 cohort calculations. Equal-duration windows on different dates have separate caches.
 
-The 7D/30D/90D shortcuts remain available and clear the custom selection. Date
+Presets include Yesterday, Last 7/30/90 days, This/Last week, This/Last month, Year to date and Last year. Weeks start Monday; incomplete current periods are disabled. Selecting a preset clears the custom selection. Date
 changes apply to website reports and selected-period app/billing outcomes. Current
 RevenueCat overview values remain explicitly current, not historical snapshots.
 The separate Product tab retains its existing preset filters.
 
 Traffic charts switch between daily page views and daily visitors, and bar or
-line rendering. Daily visitors must not be summed into a unique period audience.
+line rendering in a full-width Chart.js chart with labeled axes and a large exact-value tooltip. Page rankings sit below the chart. Daily reports use non-overlapping 90-day requests to respect Vercel's 100-row limit; any failed chunk makes the full daily report unavailable. Daily visitors must not be summed into a unique period audience.
 Exact tables display the calendar date only (`2026-09-01`), with UTC in the heading.
 Source retention still limits available history; a date picker cannot recover
 unavailable data. The live measurement plan now links every acquisition gap to

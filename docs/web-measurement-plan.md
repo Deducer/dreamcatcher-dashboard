@@ -1,9 +1,8 @@
-# DreamCatcher web measurement setup proposal
+# DreamCatcher web measurement setup and remaining connections
 
 Reviewed September 13, 2026. Recommendation: select one primary web acquisition
 collector, connect platform exposure separately, then evaluate AppsFlyer for the
-store-to-paid-subscription link. This document proposes setup; it does not imply
-that Umami, Clarity or AppsFlyer are connected.
+store-to-paid-subscription link. Umami and Clarity collection are installed; unified-dashboard imports and AppsFlyer remain separate work.
 
 ## What is already present
 
@@ -12,27 +11,30 @@ that Umami, Clarity or AppsFlyer are connected.
 - `0/src/lib/analytics.ts` already attempts named events for App Download Click
   (store/location), trial-dream actions, partner attribution and scroll depth.
   Instrumentation in source is not proof that the current plan accepts/reports it.
-- No Umami or Clarity script was found in the marketing source. No corresponding
-  secret names were found in the accessible DreamCatcher/Project Win configs.
+- The website includes scoped Umami and consent-gated Clarity collectors. Their
+  reports are linked separately until backend reporting access is configured.
 - Vercel campaign-tag queries return HTTP 402. The current response does not
   provide the previous 30-day or 90-day periods. Keep unknowns visible.
 
-## First: choose the web collector and finish measurement
+## Collection installed September 13, 2026
 
-**Preferred candidate: Umami**, if an existing maintained instance is available
-and we can obtain reporting access. Its official documentation covers campaign
-parameters and custom events. Confirm the instance version, website ownership,
-API compatibility, retention/backups and maintenance cost before selecting it.
-Self-hosted software does not mean hosting and operation have no cost.
+Ian supplied the existing self-hosted Umami site and Clarity project. The marketing
+site now installs Umami at `analytics.dissonance.cloud`, website
+`3a631133-dde5-406e-8bfb-8fa32b7a7afc`, on public marketing routes. Safe payloads
+retain campaign tags, store-link events, trial status and scroll milestones;
+OAuth callbacks, shared dreams, account identity and dream content are excluded.
 
-Setup scope: add `thedreamcatcher.ai` as a site, install the collector on approved
-public marketing routes, and capture source/medium/campaign/content tags plus
-App Store and Google Play outbound clicks. Reuse existing event wrappers after
-verifying current event behavior. Return daily totals, referrers, campaign and
-landing-page breakdowns to this dashboard with a collection-start date. Use
-explicit event allowlists and sanitized paths; never collect dream text, share
-tokens, account identifiers or OAuth callback values. Test tagged links through
-the live site and confirm ingestion, aggregation and dashboard readback.
+Clarity project `yht2eghkun` is optional after an explicit adult (18+) analytics
+choice. Advertising storage is denied, the trial container is masked, and recording
+stops on dream-form interaction. The footer supports withdrawal. The privacy
+policy states the marketing website's adult audience separately from app ratings.
+
+**Next: reporting access.** The dashboard still reads Vercel; collector IDs do not
+grant read access. Obtain a dedicated reporting credential, confirm site scope,
+retention/backups and API compatibility, then import daily totals, referrers,
+campaigns and event breakdowns with the collection start date. Do not persist an
+admin browser session as a backend credential. The dashboard links native reports
+until this connection is completed.
 
 **Alternative: Vercel Pro plus Web Analytics Plus.** Fewer integration changes,
 but verify total account cost first. The published Plus price is an additional

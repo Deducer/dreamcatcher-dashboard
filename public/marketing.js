@@ -5,22 +5,42 @@ let productInitialized = false;
 let customAcquisitionRange = null;
 let trafficMetric = 'pageviews';
 let trafficStyle = 'bars';
+let trafficChart = null;
+let acquisitionPreset = '30d';
 
 function selectedAcquisitionDates() {
-    if (customAcquisitionRange) return customAcquisitionRange;
-    const end = Date.parse(new Date().toISOString().slice(0,10));
-    const days = {'7d':7,'30d':30,'90d':90}[currentRange] || 30;
-    return {start:new Date(end-days*86400000).toISOString().slice(0,10),end:new Date(end-86400000).toISOString().slice(0,10)};
+    return customAcquisitionRange || presetDates(acquisitionPreset) || presetDates('30d');
 }
+function changeAcquisitionPreset(value) {
+    const form = document.getElementById('acquisition-date-form');
+    document.getElementById('acq-date-error').hidden = true;
+    form.hidden = value !== 'custom';
+    if (value === 'custom') { document.getElementById('acq-start').focus(); return; }
+    const dates = presetDates(value);
+    if (!dates) {
+        const error = document.getElementById('acq-date-error');
+        error.textContent = 'This period has no complete UTC days yet. Choose another period.'; error.hidden = false;
+        document.getElementById('acq-preset').value = acquisitionPreset; return;
+    }
+    acquisitionPreset = value; customAcquisitionRange = null; loadMarketing();
+}
+function cancelAcquisitionDates() {
+    document.getElementById('acquisition-date-form').hidden = true;
+    document.getElementById('acq-preset').value = acquisitionPreset;
+    document.getElementById('acq-date-error').hidden = true;
+}
+function destroyTrafficChart() { if (trafficChart) { trafficChart.destroy(); trafficChart = null; } }
 function applyAcquisitionDates(event) {
     event.preventDefault();
     const start = document.getElementById('acq-start').value, end = document.getElementById('acq-end').value;
     const days = (Date.parse(end)-Date.parse(start))/86400000+1;
     const error = document.getElementById('acq-date-error');
     const today = new Date().toISOString().slice(0,10);
-    if (!start || !end || !Number.isInteger(days) || days < 1 || days > 90 || end >= today) {
-        error.textContent = 'Choose 1 to 90 days, ending no later than yesterday (UTC).'; error.hidden = false; return;
+    if (!start || !end || !Number.isInteger(days) || days < 1 || days > 366 || end >= today) {
+        error.textContent = 'Choose 1 to 366 days, ending no later than yesterday (UTC).'; error.hidden = false; return;
     }
+    acquisitionPreset = 'custom';
+    document.getElementById('acquisition-date-form').hidden = true;
     customAcquisitionRange = {start,end};
     loadMarketing();
 }
@@ -32,6 +52,7 @@ const sourceStatus = status => ({ connected: 'Connected', not_connected: 'Not co
 
 function switchDashboardView(view) {
     const marketing = view === 'marketing';
+    document.querySelector('.time-filter').hidden = marketing;
     document.getElementById('marketing-view').hidden = !marketing;
     document.getElementById('product-view').hidden = marketing;
     document.getElementById('marketing-tab').setAttribute('aria-selected', String(marketing));
@@ -56,6 +77,10 @@ async function loadMarketing() {
     const request = ++marketingRequest;
     const dates = selectedAcquisitionDates();
     const query = new URLSearchParams(dates).toString();
+    const prettyDate = value => new Date(value+'T00:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'});
+    document.getElementById('acq-range-label').textContent = `${prettyDate(dates.start)} – ${prettyDate(dates.end)}`;
+    document.getElementById('acq-preset').value = acquisitionPreset;
+    for (const option of document.querySelectorAll('#acq-preset option')) if (option.value !== 'custom') option.disabled = !presetDates(option.value);
     document.getElementById('acq-date-error').hidden = true;
     for (const key of ['start','end']) {
         const input = document.getElementById(`acq-${key}`);
@@ -67,6 +92,7 @@ async function loadMarketing() {
     marketingData = null;
     const content = document.getElementById('marketing-content');
     content.hidden = false;
+    destroyTrafficChart();
     content.innerHTML = '<div id="acquisition-content"></div><details class="chart-card growth-section" id="acquisition-outcomes"><summary>What happens after acquisition</summary><p class="growth-detail">Registrations, trials and subscriptions help judge traffic quality. These totals are not a matched website-to-app funnel.</p><div id="growth-quality-content"><p class="growth-detail">Loading app and billing outcomes…</p></div></details>';
     document.getElementById('marketing-status').textContent = 'Loading acquisition sources…';
     renderAcquisition();
@@ -121,7 +147,7 @@ function growthCard(label, value, detail, comparison) {
     return `<article class="metric-card"><h3 class="metric-label">${growthEscape(label)}</h3><div class="metric-value">${growthEscape(value)}</div><p class="growth-detail">${growthEscape(detail)}</p>${comparison ? `<p class="growth-comparison">${growthEscape(comparison)}</p>` : ''}</article>`;
 }
 function reportNotice(source, subject) {
-    if (source.status === 'plan_required') return `<div class="acq-empty"><strong>Campaign tags need Vercel Web Analytics Plus</strong><p>Vercel Web Analytics is already installed. This plan does not expose campaign tags. Next step: compare enabling Plus with adding Umami campaign and store-link tracking, then verify its data in this dashboard. <a href="#web-measurement-plan">See the measurement setup plan</a>.</p></div>`;
+    if (source.status === 'plan_required') return `<div class="acq-empty"><strong>Campaign tags need Vercel Web Analytics Plus</strong><p>Vercel Web Analytics is installed, but this plan does not expose campaign tags. Umami now collects campaign tags and store-link clicks separately; importing those reports here is the next connection. <a href="#web-measurement-plan">See the measurement setup plan</a>.</p></div>`;
     return `<div class="acq-empty"><strong>${sourceStatus(source.status)}</strong><p>${source.status === 'loading' ? `Checking ${subject}…` : `${subject} is not available for this window. Try 7D or 30D, or Refresh. Missing data is not zero.`}</p></div>`;
 }
 function trafficTable(source, title, emptyLabel, total) {
@@ -155,6 +181,7 @@ function renderAcquisition() {
         ['Instagram / Facebook Ads','Paid','—','Ad account reporting not connected','https://business.facebook.com'],
         ['Search visibility','Organic','—','Search impressions and queries not connected','https://search.google.com/search-console'],
     ];
+    destroyTrafficChart();
     document.getElementById('acquisition-content').innerHTML = `
         <div class="metrics-grid acq-kpis">
             ${growthCard('Website visitors',growthNumber(totals.data?.visitors),'thedreamcatcher.ai · production website',comparison('visitors'))}
@@ -166,7 +193,7 @@ function renderAcquisition() {
             ${trafficTable(referrers,'Referrer','Direct / unknown',total)}
             <p class="growth-detail">Visitors can appear under more than one referrer, so rows must not be summed into unique reach. “Others” is the provider’s remaining groups. Referral visits are not social impressions or ad clicks.</p>
         </section>
-        <div class="growth-columns"><section class="chart-card"><p class="acq-eyebrow">TRAFFIC OVER TIME</p><h2 class="chart-title">Website traffic over time</h2>
+        <div class="acq-traffic-stack"><section class="chart-card acq-traffic-card"><p class="acq-eyebrow">TRAFFIC OVER TIME</p><h2 class="chart-title">Website traffic over time</h2>
             <div class="acq-chart-controls"><label>Metric <select id="traffic-metric" onchange="trafficMetric=this.value;renderTrafficTrend()"><option value="pageviews" ${trafficMetric==='pageviews'?'selected':''}>Page views</option><option value="visitors" ${trafficMetric==='visitors'?'selected':''}>Visitors per day</option></select></label><label>Chart <select id="traffic-style" onchange="trafficStyle=this.value;renderTrafficTrend()"><option value="bars" ${trafficStyle==='bars'?'selected':''}>Bars</option><option value="line" ${trafficStyle==='line'?'selected':''}>Line</option></select></label></div>
             <div id="acq-traffic-trend"></div>
             ${daily.status === 'connected' ? `<details class="acq-daily-values"><summary>View daily values</summary>${trafficTable(daily,'UTC day','',total)}</details>` : ''}
@@ -184,30 +211,46 @@ function renderAcquisition() {
             ${tags.status === 'connected' ? `<details class="acq-daily-values"><summary>View tagged sources</summary>${trafficTable(tags,'Source tag','No source tag',total)}</details>` : ''}
         </section>
         <section class="chart-card growth-section acq-next" id="web-measurement-plan"><h2 class="chart-title">Measurement setup &amp; next connections</h2><div class="acq-steps">
-            <div><strong>Web analytics setup</strong><p>Vercel is already collecting visits. Next: evaluate Umami for campaign tags and App Store / Google Play link clicks, or enable Vercel Web Analytics Plus. Verify test events and dashboard reporting before calling setup complete.</p></div>
-            <div><strong>Landing-page behavior</strong><p>Evaluate Microsoft Clarity for heatmaps and session recordings on public marketing pages. Exclude dream content and authentication flows, and verify masking and consent before enabling recording.</p></div>
+            <div><strong>Web analytics setup</strong><p>Vercel supplies the reports above. Self-hosted Umami now collects campaign tags and App Store / Google Play link clicks on the marketing site. <a href="https://analytics.dissonance.cloud/websites/3a631133-dde5-406e-8bfb-8fa32b7a7afc" target="_blank" rel="noopener noreferrer">Open Umami</a>. Next: connect a dedicated reporting credential to bring its data here.</p></div>
+            <div><strong>Landing-page behavior</strong><p>Microsoft Clarity is installed for optional, consented 18+ landing-page heatmaps and recordings. Dream entry/results are masked; recording stops on dream-form interaction. <a href="https://clarity.microsoft.com/projects/view/yht2eghkun/dashboard" target="_blank" rel="noopener noreferrer">Open Clarity</a>. Reports require processing time and are not imported here.</p></div>
             <div><strong>Search discovery</strong><p>Connect Google Search Console for queries, impressions, clicks and search position. Website referrers alone cannot show how often we appear in search.</p></div>
             <div><strong>Social exposure</strong><p>Connect Instagram and TikTok views, reach and engagement by post. Add creator placements as identifiable campaigns.</p></div>
             <div><strong>Install attribution</strong><p>Evaluate AppsFlyer pricing and data access. Verify tracked links through both stores before treating installs as attributed.</p></div>
             <div><strong>Paid performance</strong><p>Connect ad impressions, clicks and spend. Match first paid subscriptions to campaigns before calculating acquisition cost.</p></div>
-        </div><p class="growth-detail">Umami, Clarity and AppsFlyer are proposed additions, not connected sources. New tools begin collecting after setup and cannot recreate missing history. Product outcomes are available below as a quality check.</p></section>`;
+        </div><p class="growth-detail">Umami and Clarity collection began September 13, 2026; their reports are available in the linked tools, subject to consent and processing. This dashboard still uses Vercel website data. AppsFlyer remains a proposed addition. New tools cannot recreate missing history. Product outcomes are available below as a quality check.</p></section>`;
     renderTrafficTrend();
 }
 
 function renderTrafficTrend() {
     const target = document.getElementById('acq-traffic-trend');
     if (!target) return;
+    destroyTrafficChart();
     const source = acquisitionData?.sources?.daily || {status:'loading'};
     if (source.status !== 'connected') { target.innerHTML = reportNotice(source,'Daily traffic'); return; }
     const rows = source.data;
     if (!rows.length) { target.textContent = 'No recorded traffic in this period.'; return; }
     const metric = trafficMetric === 'visitors' ? 'visitors' : 'pageviews';
-    const label = metric === 'visitors' ? 'visitors' : 'page views';
-    const max = Math.max(1,...rows.map(r=>r[metric]));
-    const points = rows.map((r,i)=>({x:rows.length===1?320:8+i/(rows.length-1)*624,y:168-r[metric]/max*150,row:r}));
-    const title = r => `${r.value.slice(0,10)}: ${r[metric]} ${label}`;
-    const chart = trafficStyle === 'line' ? `<svg class="acq-line-chart" viewBox="0 0 640 180" role="img" aria-label="Daily ${label}; exact values in the table below"><path d="${points.map((p,i)=>`${i?'L':'M'}${p.x},${p.y}`).join(' ')}" fill="none" stroke="#b298ff" stroke-width="3"/>${points.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="4" fill="#b298ff"><title>${growthEscape(title(p.row))}</title></circle>`).join('')}</svg>` : `<div class="acq-trend" role="img" aria-label="Daily ${label}; exact values in the table below">${rows.map(r=>`<div class="acq-day" title="${growthEscape(title(r))}"><span style="height:${r[metric]/max*100}%"></span></div>`).join('')}</div>`;
-    target.innerHTML = `<p class="growth-detail">Daily ${label} · highest day: ${growthNumber(Math.max(...rows.map(r=>r[metric])))}</p>${chart}<div class="acq-trend-labels"><span>${growthEscape(rows[0].value.slice(0,10))}</span><span>${growthEscape(rows.at(-1).value.slice(0,10))}</span></div>${metric==='visitors'?'<p class="growth-detail">Daily visitors can repeat across dates. Adding these values does not give unique visitors for the whole period.</p>':''}`;
+    const label = metric === 'visitors' ? 'Daily visitors' : 'Page views';
+    target.innerHTML = `<p class="growth-detail">Hover or tap the chart for exact values.</p><div class="acq-chart-canvas"><canvas id="traffic-chart" role="img" aria-label="${label} by UTC date. Exact values are available in the daily table below."></canvas></div>${metric==='visitors'?'<p class="growth-detail">Visitors can repeat across days. Daily counts do not add up to a unique audience for the entire period.</p>':''}`;
+    if (typeof Chart === 'undefined') { target.innerHTML = '<p class="growth-detail">Chart library unavailable. Exact values remain available in the daily table below.</p>'; return; }
+    const pretty = value => new Date(value).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'});
+    trafficChart = new Chart(document.getElementById('traffic-chart'), {
+        type: trafficStyle === 'line' ? 'line' : 'bar',
+        data: {labels:rows.map(r=>r.value.slice(0,10)),datasets:[{label,data:rows.map(r=>r[metric]),borderColor:'#b59aff',backgroundColor:trafficStyle==='line'?'rgba(181,154,255,.08)':'#9e7be9',hoverBackgroundColor:'#d4bfff',borderWidth:trafficStyle==='line'?2:0,borderRadius:3,maxBarThickness:56,pointRadius:rows.length>60?0:3,pointHoverRadius:5,tension:0,fill:trafficStyle==='line'}]},
+        options: {
+            responsive:true,maintainAspectRatio:false,animation:false,
+            interaction:{mode:'index',intersect:false},
+            plugins:{legend:{display:false},tooltip:{enabled:true,backgroundColor:'#f6f3ff',titleColor:'#211b30',bodyColor:'#211b30',padding:14,cornerRadius:8,displayColors:false,titleFont:{size:13},bodyFont:{size:15,weight:'bold'},callbacks:{
+                title:items=>items.length?new Date(rows[items[0].dataIndex].value).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric',timeZone:'UTC'})+' · UTC':'',
+                label:item=>`${label}: ${growthNumber(rows[item.dataIndex][metric])}`,
+                afterLabel:item=>metric==='visitors'?`Page views: ${growthNumber(rows[item.dataIndex].pageviews)}`:`Visitors: ${growthNumber(rows[item.dataIndex].visitors)}`,
+            }}},
+            scales:{
+                x:{title:{display:true,text:'Date (UTC)',color:'#bab5c5'},grid:{display:false},border:{color:'#55505f'},ticks:{color:'#aaa5b5',maxRotation:0,autoSkip:true,maxTicksLimit:window.innerWidth<700?4:12,callback:function(value){return pretty(this.getLabelForValue(value));}}},
+                y:{beginAtZero:true,title:{display:true,text:label,color:'#bab5c5'},grid:{color:'rgba(255,255,255,.07)'},border:{color:'#55505f'},ticks:{color:'#aaa5b5',precision:0,maxTicksLimit:6}},
+            },
+        },
+    });
 }
 
 function renderMarketing(data) {

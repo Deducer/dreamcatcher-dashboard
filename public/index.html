@@ -65,13 +65,24 @@
                     <div><p class="acq-eyebrow">DREAMCATCHER / MARKETING</p><h1>How people find us</h1><p>Exposure, traffic sources, and the campaigns that bring people to DreamCatcher.</p></div>
                     <button class="growth-button" onclick="loadMarketing()">Refresh</button>
                 </div>
-                <form id="acquisition-date-form" class="acq-date-controls" onsubmit="applyAcquisitionDates(event)">
+                <div class="acq-date-toolbar">
+                    <label class="acq-preset-label">Date range
+                        <select id="acq-preset" onchange="changeAcquisitionPreset(this.value)">
+                            <option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d" selected>Last 30 days</option><option value="90d">Last 90 days</option>
+                            <option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option>
+                            <option value="ytd">Year to date</option><option value="last_year">Last year</option><option value="custom">Custom range…</option>
+                        </select>
+                    </label>
+                    <div class="acq-range-caption"><strong id="acq-range-label"></strong><span>Complete days · UTC · weeks start Monday</span></div>
+                </div>
+                <form id="acquisition-date-form" class="acq-date-controls" onsubmit="applyAcquisitionDates(event)" hidden>
                     <label>From <input type="date" id="acq-start" required></label>
                     <label>Through <input type="date" id="acq-end" required></label>
-                    <button class="growth-button" type="submit">Apply dates</button>
-                    <span class="growth-detail">Inclusive UTC dates · up to 90 complete days · available history varies by source</span>
-                    <p id="acq-date-error" role="alert" hidden></p>
+                    <button class="growth-button" type="submit">Apply range</button>
+                    <button class="growth-button acq-cancel" type="button" onclick="cancelAcquisitionDates()">Cancel</button>
+                    <span class="growth-detail">Inclusive dates · up to 366 days · ending by yesterday</span>
                 </form>
+                <p id="acq-date-error" role="alert" hidden></p>
                 <p id="marketing-status" role="status" aria-live="polite">Loading acquisition sources…</p>
                 <div id="marketing-content"></div>
             </section>
@@ -260,6 +271,7 @@
         </div>
     </div>
 
+    <script src="date-presets.js"></script>
     <script src="marketing.js"></script>
     <script src="dashboard.js"></script>
 </body>

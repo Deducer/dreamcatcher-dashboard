@@ -61,7 +61,7 @@ test('custom date ranges include the entire last day and validate calendar bound
     for (const query of [
         {start:'2026-02-30',end:'2026-03-01'}, {start:'2026-09-02',end:'2026-09-01'},
         {start:'2026-09-01'}, {start:'2026-09-01',end:'2026-09-13'},
-        {start:'2026-01-01',end:'2026-09-12'}, {start:['2026-09-01'],end:'2026-09-02'},
+        {start:'2025-01-01',end:'2026-09-12'}, {start:['2026-09-01'],end:'2026-09-02'},
     ]) assert.throws(() => resolveWindow(query, now));
     assert.equal(resolveWindow({range:'7d'}, now).days, 7);
 });
@@ -77,4 +77,27 @@ test('custom acquisition requests retain both dates, including equal-duration ca
     assert.equal(requested[0].get('since'),windows[0].start);
     assert.equal(requested[7].get('since'),windows[1].start);
     assert.equal(requested[2].get('until'),'2026-09-03T23:59:59.999Z');
+});
+
+test('year-long daily reports cover every day without exceeding the provider row cap or returning partial data', async () => {
+    const window = {start:'2024-01-01T00:00:00.000Z',end:'2025-01-01T00:00:00.000Z',days:366};
+    let fail = false;
+    const request = async url => {
+        const p = new URL(url).searchParams;
+        if (p.get('by') !== 'day') return {status:402,ok:false};
+        assert.equal(p.get('limit'), '100');
+        if (fail && p.get('since') !== window.start) return {status:503,ok:false};
+        const end = Date.parse(p.get('until')) + 1;
+        const data = [];
+        for (let day = Date.parse(p.get('since')); day < end; day += 86400000) data.push({timestamp:new Date(day).toISOString(),visitors:1,pageviews:2});
+        assert.ok(data.length <= 90);
+        return {ok:true,json:async()=>({query:{since:p.get('since'),until:new Date(end).toISOString()},data})};
+    };
+    const env = {VERCEL_TOKEN:'test',VERCEL_PROJECT_ID:'test'};
+    const result = await createAcquisitionService({env,request})(window);
+    assert.equal(result.sources.daily.data.length,366);
+    assert.equal(new Set(result.sources.daily.data.map(row=>row.value)).size,366);
+    fail = true;
+    const failed = await createAcquisitionService({env,request})(window);
+    assert.deepEqual(failed.sources.daily,{status:'unavailable',data:null});
 });
