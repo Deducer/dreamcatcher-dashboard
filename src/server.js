@@ -2,6 +2,7 @@ const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 const cookieParser = require('cookie-parser');
 const path = require('path');
+const { createMarketingService } = require('./marketing');
 require('dotenv').config();
 
 const app = express();
@@ -92,11 +93,13 @@ async function getEmailMap() {
     let page = 1;
     while (page <= 50) {
         const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
-        if (error || !data || !data.users || data.users.length === 0) break;
+        if (error || !data || !data.users) throw new Error('Unable to refresh account exclusions');
+        if (data.users.length === 0) break;
         data.users.forEach(u => { map[u.id] = u.email; });
         if (data.users.length < 1000) break;
         page++;
     }
+    if (page > 50) throw new Error('Account exclusion pagination limit exceeded');
     _emailCache = { map, at: Date.now() };
     return map;
 }
@@ -245,7 +248,7 @@ function getTimeSeriesArray(groupedData, days, aggregation = 'day') {
 // Auth Middleware
 const authMiddleware = (req, res, next) => {
     const authCookie = req.cookies.dashboard_auth;
-    if (authCookie === process.env.DASHBOARD_PASSWORD) {
+    if (process.env.DASHBOARD_PASSWORD && authCookie === process.env.DASHBOARD_PASSWORD) {
         next();
     } else {
         res.status(401).json({ error: 'Unauthorized' });
@@ -253,11 +256,19 @@ const authMiddleware = (req, res, next) => {
 };
 
 // Routes
+const marketing = createMarketingService({ supabase, refreshExcludedIds, isExcludedEmail });
+app.get('/api/marketing', authMiddleware, async (req, res) => {
+    const days = new Map([['7d', 7], ['30d', 30], ['90d', 90]]).get(req.query.range || '30d');
+    if (!days) return res.status(400).json({ error: 'Choose 7d, 30d, or 90d.' });
+    res.set('Cache-Control', 'no-store');
+    try { res.json(await marketing(days)); }
+    catch { res.status(503).json({ error: 'Growth metrics are unavailable. Please retry; missing data has not been counted as zero.' }); }
+});
 
 // Login Endpoint
 app.post('/api/login', (req, res) => {
     const { password } = req.body;
-    if (password === process.env.DASHBOARD_PASSWORD) {
+    if (process.env.DASHBOARD_PASSWORD && password === process.env.DASHBOARD_PASSWORD) {
         res.cookie('dashboard_auth', password, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -772,7 +783,7 @@ app.post('/api/moderation/action', authMiddleware, async (req, res) => {
 // Check Auth Status
 app.get('/api/check-auth', (req, res) => {
     const authCookie = req.cookies.dashboard_auth;
-    if (authCookie === process.env.DASHBOARD_PASSWORD) {
+    if (process.env.DASHBOARD_PASSWORD && authCookie === process.env.DASHBOARD_PASSWORD) {
         res.json({ authenticated: true });
     } else {
         res.json({ authenticated: false });
