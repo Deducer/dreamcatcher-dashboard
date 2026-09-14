@@ -1,6 +1,7 @@
 let marketingRequest = 0;
 let marketingData = null;
 let acquisitionData = null;
+let mobileAttributionData = null;
 let productInitialized = false;
 let customAcquisitionRange = null;
 let trafficMetric = 'pageviews';
@@ -94,13 +95,15 @@ async function loadMarketing() {
     }
     document.querySelectorAll('.filter-btn').forEach(button => button.classList.toggle('active', !customAcquisitionRange && button.dataset.range === currentRange));
     acquisitionData = null;
+    mobileAttributionData = null;
     marketingData = null;
     const content = document.getElementById('marketing-content');
     content.hidden = false;
     destroyTrafficChart();
-    content.innerHTML = '<div id="acquisition-content"></div><details class="chart-card growth-section" id="acquisition-outcomes"><summary>What happens after acquisition</summary><p class="growth-detail">Registrations, trials and subscriptions help judge traffic quality. These totals are not a matched website-to-app funnel.</p><div id="growth-quality-content"><p class="growth-detail">Loading app and billing outcomes…</p></div></details>';
+    content.innerHTML = '<div id="acquisition-content"></div><div id="mobile-attribution-content"></div><details class="chart-card growth-section" id="acquisition-outcomes"><summary>What happens after acquisition</summary><p class="growth-detail">Registrations, trials and subscriptions help judge traffic quality. These totals are not a matched website-to-app funnel.</p><div id="growth-quality-content"><p class="growth-detail">Loading app and billing outcomes…</p></div></details>';
     document.getElementById('marketing-status').textContent = 'Loading acquisition sources…';
     renderAcquisition();
+    renderMobileAttribution();
     const get = async path => {
         const response = await fetch(`${path}?${query}`, { signal: AbortSignal.timeout(15000) });
         if (response.status === 401) { if (request === marketingRequest) showLogin(); throw Error('Auth'); }
@@ -109,6 +112,17 @@ async function loadMarketing() {
     };
     // Traffic does not depend on Supabase, billing or PostHog finishing.
     await Promise.allSettled([
+        (async () => {
+            try {
+                const data = await get('/api/mobile-attribution');
+                if (request !== marketingRequest) return;
+                mobileAttributionData = data;
+            } catch {
+                if (request !== marketingRequest) return;
+                mobileAttributionData = { platforms: ['iOS','Android'].map(label => ({ label, status:'unavailable' })) };
+            }
+            renderMobileAttribution();
+        })(),
         (async () => {
             try {
                 const data = await get('/api/acquisition');
@@ -226,10 +240,30 @@ function renderAcquisition() {
             <div><strong>Landing-page behavior</strong><p>Microsoft Clarity is installed for optional, consented 18+ landing-page heatmaps and recordings. Dream entry/results are masked; recording stops on dream-form interaction. <a href="https://clarity.microsoft.com/projects/view/yht2eghkun/dashboard" target="_blank" rel="noopener noreferrer">Open Clarity</a>. Reports require processing time and are not imported here.</p></div>
             <div><strong>Search discovery</strong><p>Connect Google Search Console for queries, impressions, clicks and search position. Website referrers alone cannot show how often we appear in search.</p></div>
             <div><strong>Social exposure</strong><p>Connect Instagram and TikTok views, reach and engagement by post. Add creator placements as identifiable campaigns.</p></div>
-            <div><strong>Install attribution</strong><p>Evaluate Adjust’s free trial and AppsFlyer’s API trial. Verify tracked links through both stores before treating installs as attributed.</p></div>
+            <div><strong>Install attribution</strong><p>AppsFlyer is connected for the native test builds: iOS 1.1.4 (54) and Android 1.1.4 (35). See the pilot reports below. Device and subscription tests must pass before using these results to judge campaigns.</p></div>
             <div><strong>Paid performance</strong><p>Connect ad impressions, clicks and spend. Match first paid subscriptions to campaigns before calculating acquisition cost.</p></div>
-        </div><p class="growth-detail">Umami and Clarity collection began September 13, 2026; their reports are available in the linked tools, subject to consent and processing. This dashboard defaults to Umami; select Vercel for earlier history. Mobile attribution remains a proposed addition. New tools cannot recreate missing history. Product outcomes are available below as a quality check.</p></section>`;
+        </div><p class="growth-detail">Umami and Clarity collection began September 13, 2026; their reports are available in the linked tools, subject to consent and processing. This dashboard defaults to Umami; select Vercel for earlier history. AppsFlyer is in testing, with API access on trial. New tools cannot recreate missing history. Product outcomes are available below as a quality check.</p></section>`;
     renderTrafficTrend();
+}
+
+function renderMobileAttribution() {
+    const data = mobileAttributionData;
+    const platforms = data?.platforms || ['iOS','Android'].map(label => ({label,status:'loading'}));
+    const statusText = { connected:'Reporting connected', loading:'Checking reporting…', unavailable:'Report unavailable', rate_limited:'Provider rate limit · retry later', access_unavailable:'Reporting access unavailable', paused:'API refresh paused', not_connected:'Reporting not connected', not_collected:'Before pilot coverage' };
+    const events = platform => {
+        const rows = Object.entries(platform.events || {}).filter(([,count]) => count != null);
+        return rows.length ? rows.map(([name,count]) => `<div>${growthEscape(name.replace(/^rc_/, '').replace(/_event$/, '').replace(/_/g,' '))}: ${growthNumber(count)}</div>`).join('') : 'No event counts reported';
+    };
+    document.getElementById('mobile-attribution-content').innerHTML = `<section class="chart-card growth-section">
+        <div class="growth-section-heading"><div><p class="acq-eyebrow">05 / MOBILE ATTRIBUTION PILOT</p><h2 class="chart-title">AppsFlyer · testing the connection</h2></div><span class="acq-badge">Device validation pending</span></div>
+        <p class="acq-coverage">Pilot data only. Store checks, reinstalls and test devices can create install records. These counts are not verified new customers or campaign results. The public app has not been upgraded to this SDK.</p>
+        <p class="growth-detail">The selected dates filter <strong>install-date cohorts</strong> in UTC; subscription events are subsequent events for those installs, not all activity during the selected dates. Missing events remain unknown. RevenueCat remains the billing authority.</p>
+        <div class="growth-table-wrap"><table class="growth-table"><thead><tr><th>App</th><th>Report status</th><th>Reported installs</th><th>Subscription event counts</th></tr></thead><tbody>${platforms.map(p => `<tr><th scope="row">${growthEscape(p.label)}</th><td>${growthEscape(statusText[p.status] || 'Unavailable')}${p.status==='connected' && !p.rows?.length?'<small>No rows for this install-date range</small>':''}${p.checkedAt?`<small>Checked ${growthEscape(new Date(p.checkedAt).toLocaleString())}</small>`:''}</td><td>${growthNumber(p.installs)}</td><td>${events(p)}</td></tr>`).join('')}</tbody></table></div>
+        ${platforms.some(p=>p.rows?.length)?`<details class="acq-daily-values"><summary>View reported install sources and dates</summary>${platforms.filter(p=>p.rows?.length).map(p=>`<h3>${growthEscape(p.label)}</h3><div class="growth-table-wrap"><table class="growth-table"><thead><tr><th>Install date (UTC)</th><th>Media source</th><th>Campaign</th><th>Agency</th><th>Installs</th></tr></thead><tbody>${p.rows.slice(0,50).map(row=>`<tr><td>${growthEscape(row.date)}</td><td>${growthEscape(row.mediaSource || 'Unknown')}</td><td>${growthEscape(row.campaign || 'Not reported')}</td><td>${growthEscape(row.agency || 'Not reported')}</td><td>${growthNumber(row.installs)}</td></tr>`).join('')}</tbody></table></div>${p.rows.length>50?`<p class="growth-detail">Showing 50 of ${p.rows.length} rows; the summary includes all returned rows.</p>`:''}`).join('')}</details>`:''}
+        <p class="growth-detail">API connection does not verify a device, a purchase, or ad attribution. Device receipt and sandbox subscription delivery are pending; ChatGPT Ads postbacks remain off. Pilot coverage starts ${growthEscape(data?.coverageStart || '2026-09-13')}${data?.partialCoverage?' · this selection includes earlier, uncollected dates':''}.</p>
+        <p class="growth-detail">API trial access ends October 12, 2026. Automatic refresh pauses on ${growthEscape(data?.apiAccessUntil || '2026-10-12')} until continued access is confirmed. Reports are cached for 10 minutes for the first two pilot days, then four hours to preserve the provider quota. Date filters reuse the same report snapshot.</p>
+        <a href="https://hq1.appsflyer.com/apps/myapps" target="_blank" rel="noopener noreferrer">Open AppsFlyer</a>
+    </section>`;
 }
 
 function renderWebsiteEvents(sources) {

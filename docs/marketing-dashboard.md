@@ -147,3 +147,15 @@ The server authenticates with UMAMI_URL, UMAMI_WEBSITE_ID, UMAMI_USERNAME, UMAMI
 Reports: stats, expanded path/referrer metrics (paginated), daily pageviews/visitors (UTC chunks up to 90 days), UTM campaign/source reports (top 50, pageviews only), events, and App Download Click store values. Missing unique-visitor counts remain null. Direct pageviews are the remainder after complete referrer pagination; daily visitors are not summed into period reach. Event counts include repeats and do not establish installs.
 
 Reporting starts September 13, 2026 at 19:32:01 UTC, the first verified accepted QA visit. Dates before coverage return not_collected. Partial periods cannot receive a misleading previous-period comparison. Vercel history is retained as a separate provider and remains subject to its retention policy.
+
+## AppsFlyer attribution pilot — September 13, 2026
+
+Mobile aggregate reporting now loads independently at `/api/mobile-attribution`,
+using the same date controls. Rows are install-date cohorts, not all activity in
+the selected dates. The pilot shows platform status, reported installs, source,
+campaign and available RevenueCat event counters; device validation is still
+pending. Missing data is unknown, not zero. See the [pilot setup and device test](appsflyer-pilot.md).
+
+Runtime-only `APPSFLYER_API_TOKEN` comes from Doppler `dreamcatcher/prd`.
+`APPSFLYER_API_ACCESS_UNTIL=2026-10-12` pauses refresh when the verified API trial
+ends. No ongoing paid plan is enabled. The mobile SDK key is not used by this API.
