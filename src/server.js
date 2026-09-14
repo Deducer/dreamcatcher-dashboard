@@ -259,6 +259,19 @@ const authMiddleware = (req, res, next) => {
 // Routes
 const acquisition = createAcquisitionService();
 const umami = require('./umami').createUmamiService();
+const appsflyer = require('./appsflyer').createAppsFlyerService();
+app.get('/api/mobile-attribution', authMiddleware, async (req, res) => {
+    let window;
+    try {
+        if (req.query.live === '1') {
+            const now = Date.now();
+            window = { days: 1, start: new Date(now).toISOString().slice(0, 10) + 'T00:00:00.000Z', end: new Date(now).toISOString(), partialDay: true };
+        } else window = resolveWindow(req.query);
+    } catch (error) { return res.status(400).json({ error: error.message }); }
+    res.set('Cache-Control', 'no-store');
+    try { res.json(await appsflyer(window)); }
+    catch { res.status(503).json({ error: 'Mobile attribution reports are unavailable.' }); }
+});
 app.get('/api/acquisition', authMiddleware, async (req, res) => {
     let window;
     try {

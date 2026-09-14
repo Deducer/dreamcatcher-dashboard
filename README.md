@@ -5,9 +5,9 @@ and Supabase.
 
 ## Features
 
-- **Marketing & growth**: source quality, fixed-window activation, weekly habit,
-  signup-cohort retention, subscription overview, trial cohorts, paywall friction,
-  website traffic, and email delivery health. See [definitions and setup](docs/marketing-dashboard.md).
+- **Marketing & growth**: website traffic, referrers, campaign tags, store clicks,
+  and an AppsFlyer mobile-attribution pilot. Product and billing outcomes remain
+  available as a traffic-quality check. See [definitions and setup](docs/marketing-dashboard.md).
 
 - **Secure Access**: Simple password authentication.
 - **Real-time Stats**: Connects directly to Supabase to fetch latest data.
