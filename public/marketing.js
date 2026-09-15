@@ -4,13 +4,13 @@ let acquisitionData = null;
 let mobileAttributionData = null;
 let productInitialized = false;
 let customAcquisitionRange = null;
-let trafficMetric = 'pageviews';
+let trafficMetric = 'visitors';
 let trafficStyle = 'bars';
 let trafficChart = null;
-let acquisitionPreset = 'today';
+let acquisitionPreset = '7d';
 let acquisitionProvider = 'umami';
 function changeAcquisitionSource(value) {
-    acquisitionProvider=value; customAcquisitionRange=null; acquisitionPreset=value==='umami'?'today':'30d';
+    acquisitionProvider=value; if(value==='vercel' && acquisitionPreset==='today') acquisitionPreset='7d';
     document.getElementById('acquisition-date-form').hidden=true; loadMarketing();
 }
 
@@ -100,7 +100,16 @@ async function loadMarketing() {
     const content = document.getElementById('marketing-content');
     content.hidden = false;
     destroyTrafficChart();
-    content.innerHTML = '<div id="acquisition-content"></div><div id="mobile-attribution-content"></div><details class="chart-card growth-section" id="acquisition-outcomes"><summary>What happens after acquisition</summary><p class="growth-detail">Registrations, trials and subscriptions help judge traffic quality. These totals are not a matched website-to-app funnel.</p><div id="growth-quality-content"><p class="growth-detail">Loading app and billing outcomes…</p></div></details>';
+    content.innerHTML = `<div id="marketing-overview"></div>
+        <div id="marketing-reports" hidden><div class="report-toolbar"><label>Website data <select id="acq-source" onchange="changeAcquisitionSource(this.value)"><option value="umami">Umami</option><option value="vercel">Vercel · earlier history</option></select></label></div>
+        <div id="report-exposure" class="report-intro"><h2>Exposure</h2><p>Social views, search impressions and ad exposure are not connected.</p><button onclick="setMarketingView('setup')">View connections</button></div>
+        <div id="acquisition-content"></div>
+        <section id="report-installs" class="report-intro"><h2>App installs</h2><p>Pilot only. QA and unclassified records are excluded from business totals.</p><button onclick="setMarketingView('setup','mobile-attribution-content')">View QA results</button></section>
+        <section class="chart-card growth-section" id="acquisition-outcomes"><h2>Subscriptions &amp; app outcomes</h2><p class="growth-detail">Independent app and billing totals; not a joined website-to-app funnel.</p><p class="scope-note">Paid starts: production / sandbox scope unverified. Provider totals are retained below for review.</p><div id="growth-quality-content"><p class="growth-detail">Loading app and billing outcomes…</p></div></section></div>
+        <div id="marketing-setup" hidden><h2>Data &amp; setup</h2><p class="growth-detail">Connections, coverage and internal test evidence.</p><div id="website-setup"></div><div id="mobile-attribution-content"></div></div>`;
+    document.getElementById('acq-source').value=acquisitionProvider;
+    applyMarketingView();
+    renderOverview();
     document.getElementById('marketing-status').textContent = 'Loading acquisition sources…';
     renderAcquisition();
     renderMobileAttribution();
@@ -122,6 +131,7 @@ async function loadMarketing() {
                 mobileAttributionData = { platforms: ['iOS','Android'].map(label => ({ label, status:'unavailable' })) };
             }
             renderMobileAttribution();
+            renderOverview();
         })(),
         (async () => {
             try {
@@ -148,10 +158,12 @@ async function loadMarketing() {
                 if (request !== marketingRequest) return;
                 marketingData = core;
                 renderMarketing(core);
+                renderOverview();
                 const data = await get('/api/marketing');
                 if (request !== marketingRequest) return;
                 marketingData = data;
                 renderMarketing(data);
+                renderOverview();
             } catch {
                 if (request !== marketingRequest) return;
                 if (marketingData) {
@@ -161,6 +173,7 @@ async function loadMarketing() {
             }
         })(),
     ]);
+    if(request===marketingRequest) { renderOverview(); organizeReports(); }
 }
 
 function growthCard(label, value, detail, comparison) {
@@ -229,7 +242,7 @@ function renderAcquisition() {
             <p class="growth-detail">Instagram and TikTok publishing connections exist in Postiz. Their analytics are not exposed by the installed version. No combined social reach is reported.</p>
         </section>
         <section class="chart-card growth-section"><p class="acq-eyebrow">03 / CAMPAIGN PERFORMANCE</p><h2 class="chart-title">Which campaigns bring people here?</h2>
-            <p class="growth-detail">Tagged website traffic will appear here when available. Mobile campaign records are in the mobile results section below. Ad spend and verified customer revenue by campaign remain unconnected.</p>
+            <p class="growth-detail">Tagged website traffic will appear here when available. Mobile campaign records are in Data &amp; setup during the pilot. Ad spend and verified customer revenue by campaign remain unconnected.</p>
             ${trafficTable(campaigns,'Campaign tag','No campaign tag',total)}
             ${acquisitionData?.provider==='umami'?'<p class="growth-detail">Top 50 tags by page views. Umami does not return unique visitors for these tag summaries; they are shown as —.</p>':''}
             ${tags.status === 'connected' ? `<details class="acq-daily-values"><summary>View tagged sources</summary>${trafficTable(tags,'Source tag','No source tag',total)}</details>` : ''}
@@ -240,10 +253,12 @@ function renderAcquisition() {
             <div><strong>Landing-page behavior</strong><p>Microsoft Clarity is installed for optional, consented 18+ landing-page heatmaps and recordings. Dream entry/results are masked; recording stops on dream-form interaction. <a href="https://clarity.microsoft.com/projects/view/yht2eghkun/dashboard" target="_blank" rel="noopener noreferrer">Open Clarity</a>. Reports require processing time and are not imported here.</p></div>
             <div><strong>Search discovery</strong><p>Connect Google Search Console for queries, impressions, clicks and search position. Website referrers alone cannot show how often we appear in search.</p></div>
             <div><strong>Social exposure</strong><p>Connect Instagram and TikTok views, reach and engagement by post. Add creator placements as identifiable campaigns.</p></div>
-            <div><strong>Install attribution</strong><p>AppsFlyer is connected for the native test builds: iOS 1.1.4 (54) and Android 1.1.4 (35). See the pilot reports below. Device receipt, sandbox subscription delivery and restore checks have passed. Campaign attribution is still being validated.</p></div>
+            <div><strong>Install attribution</strong><p>AppsFlyer is connected for the native test builds: iOS 1.1.4 (54) and Android 1.1.4 (35). See the pilot reports in Data &amp; setup. Device receipt, sandbox subscription delivery and restore checks have passed. Campaign attribution is still being validated.</p></div>
             <div><strong>Paid performance</strong><p>Connect ad impressions, clicks and spend. Match first paid subscriptions to campaigns before calculating acquisition cost.</p></div>
-        </div><p class="growth-detail">Umami and Clarity collection began September 13, 2026; their reports are available in the linked tools, subject to consent and processing. This dashboard defaults to Umami; select Vercel for earlier history. AppsFlyer is in testing, with API access on trial. New tools cannot recreate missing history. Product outcomes are available below as a quality check.</p></section>`;
-    renderTrafficTrend();
+        </div><p class="growth-detail">Umami and Clarity collection began September 13, 2026; their reports are available in the linked tools, subject to consent and processing. This dashboard defaults to Umami; select Vercel for earlier history. AppsFlyer is in testing, with API access on trial. New tools cannot recreate missing history. Product outcomes are in Reports as a quality check.</p></section>`;
+    organizeReports();
+    renderOverview();
+    if(marketingSubview==='reports') renderTrafficTrend();
 }
 
 function renderMobileAttribution() {
@@ -260,7 +275,7 @@ function renderMobileAttribution() {
         <div class="growth-section-heading"><div><p class="acq-eyebrow">05 / MOBILE RESULTS</p><h2 class="chart-title">Mobile acquisition & subscriptions</h2></div><span class="acq-badge">Internal build pilot</span></div>
         <p class="acq-coverage">AppsFlyer reports for iOS and Android. The SDK is in the internal test builds; public-store rollout is still pending. Test activity is visible here and excluded from business performance.</p>
         <p class="growth-detail">These tables use the selected <strong>activity dates in UTC</strong>. Install, reinstall and subscription events are separate. RevenueCat remains the billing authority.</p>
-        ${!activity?'<p class="acq-empty">Mobile activity is not available yet. Use Refresh to retry.</p>':`<p class="growth-detail">Available report window: ${growthEscape(activity.coverageStart.slice(0,10))} through ${growthEscape(activity.coverageEnd.slice(0,10))}.${activity.partialCoverage?' Your selection includes dates outside this coverage.':''} Reports refresh at most every four hours to preserve the API quota; provider processing can add delay.</p>
+        ${!activity?(data?'<p class="acq-empty">Mobile activity is unavailable. Use Refresh to retry.</p>':'<p class="growth-detail">Loading mobile QA reports…</p>'):`<p class="growth-detail">Available report window: ${growthEscape(activity.coverageStart.slice(0,10))} through ${growthEscape(activity.coverageEnd.slice(0,10))}.${activity.partialCoverage?' Your selection includes dates outside this coverage.':''} Reports refresh at most every four hours to preserve the API quota; provider processing can add delay.</p>
         ${!activity.exclusionsAvailable?'<p class="acq-empty">Internal-account lookup unavailable. Unmatched rows remain unclassified.</p>':''}
         <div class="growth-table-wrap"><table class="growth-table"><thead><tr><th>App / report access</th><th>Record group</th><th>Installs</th><th>Reinstalls</th><th>In-app events</th></tr></thead><tbody>${platformRows.map(p=>['qa','unclassified'].map((group,i)=>`<tr>${i===0?`<th rowspan="2" scope="rowgroup">${growthEscape(p.label)}<small>${growthEscape(statuses[p.status]||p.status)}</small></th>`:''}<th scope="row">${group==='qa'?'QA / internal':'Unclassified'}</th><td>${count(p[group]?.installs)}</td><td>${count(p[group]?.reinstalls)}</td><td>${count(p[group]?.events)}</td></tr>`).join('')).join('')}</tbody></table></div>
         <p class="growth-detail">${growthEscape(activity.classificationNote)} A dash means a required report is unavailable; see report coverage below. Zero means no matching rows in the available report snapshot.</p>
@@ -274,6 +289,7 @@ function renderMobileAttribution() {
         <p class="growth-detail">API trial access ends October 12, 2026. Automatic AppsFlyer refresh pauses on ${growthEscape(data?.apiAccessUntil||'2026-10-12')} until continued access is confirmed. Missing data is never replaced with revenue estimates.</p>
         <a href="https://hq1.appsflyer.com/apps/myapps" target="_blank" rel="noopener noreferrer">Open AppsFlyer</a>
     </section>`;
+    organizeReports();
 }
 
 function renderWebsiteEvents(sources) {
@@ -284,11 +300,14 @@ function renderWebsiteEvents(sources) {
 }
 
 function renderTrafficTrend() {
-    const target = document.getElementById('acq-traffic-trend');
+    if(marketingSubview==='setup') return;
+    if(marketingSubview==='overview') updateOverviewComparison();
+    const target = document.getElementById(marketingSubview==='overview'?'overview-traffic-trend':'acq-traffic-trend');
     if (!target) return;
     destroyTrafficChart();
+    document.querySelectorAll('#traffic-chart').forEach(el=>el.parentElement.remove());
     const source = acquisitionData?.sources?.daily || {status:'loading'};
-    if (source.status !== 'connected') { target.innerHTML = reportNotice(source,'Daily traffic'); return; }
+    if (source.status !== 'connected') { target.innerHTML = marketingSubview==='overview'?`<p class="acq-empty">${growthEscape(AcquisitionModel.availability(source.status))}</p>`:reportNotice(source,'Daily traffic'); return; }
     const rows = source.data;
     if (!rows.length) { target.textContent = 'No recorded traffic in this period.'; return; }
     const metric = trafficMetric === 'visitors' ? 'visitors' : 'pageviews';
@@ -298,7 +317,7 @@ function renderTrafficTrend() {
     const pretty = value => new Date(value).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'});
     trafficChart = new Chart(document.getElementById('traffic-chart'), {
         type: trafficStyle === 'line' ? 'line' : 'bar',
-        data: {labels:rows.map(r=>r.value.slice(0,10)),datasets:[{label,data:rows.map(r=>r[metric]),borderColor:'#b59aff',backgroundColor:trafficStyle==='line'?'rgba(181,154,255,.08)':'#9e7be9',hoverBackgroundColor:'#d4bfff',borderWidth:trafficStyle==='line'?2:0,borderRadius:3,maxBarThickness:56,pointRadius:rows.length>60?0:3,pointHoverRadius:5,tension:0,fill:trafficStyle==='line'}]},
+        data: {labels:rows.map(r=>r.value.slice(0,10)),datasets:[{label,data:rows.map(r=>r[metric]),borderColor:'#7352bd',backgroundColor:trafficStyle==='line'?'rgba(181,154,255,.08)':'#8661d2',hoverBackgroundColor:'#d4bfff',borderWidth:trafficStyle==='line'?2:0,borderRadius:3,maxBarThickness:56,pointRadius:rows.length>60?0:3,pointHoverRadius:5,tension:0,fill:trafficStyle==='line'}]},
         options: {
             responsive:true,maintainAspectRatio:false,animation:false,
             interaction:{mode:'index',intersect:false},
@@ -308,8 +327,8 @@ function renderTrafficTrend() {
                 afterLabel:item=>metric==='visitors'?`Page views: ${growthNumber(rows[item.dataIndex].pageviews)}`:`Visitors: ${growthNumber(rows[item.dataIndex].visitors)}`,
             }}},
             scales:{
-                x:{title:{display:true,text:'Date (UTC)',color:'#bab5c5'},grid:{display:false},border:{color:'#55505f'},ticks:{color:'#aaa5b5',maxRotation:0,autoSkip:true,maxTicksLimit:window.innerWidth<700?4:12,callback:function(value){return pretty(this.getLabelForValue(value));}}},
-                y:{beginAtZero:true,title:{display:true,text:label,color:'#bab5c5'},grid:{color:'rgba(255,255,255,.07)'},border:{color:'#55505f'},ticks:{color:'#aaa5b5',precision:0,maxTicksLimit:6}},
+                x:{title:{display:true,text:'Date (UTC)',color:'#515968'},grid:{display:false},border:{color:'#cdd1d9'},ticks:{color:'#515968',maxRotation:0,autoSkip:true,maxTicksLimit:window.innerWidth<700?4:12,callback:function(value){return pretty(this.getLabelForValue(value));}}},
+                y:{beginAtZero:true,title:{display:true,text:label,color:'#515968'},grid:{color:'rgba(32,40,55,.08)'},border:{color:'#cdd1d9'},ticks:{color:'#515968',precision:0,maxTicksLimit:6}},
             },
         },
     });
@@ -333,6 +352,7 @@ function renderMarketing(data) {
         <p class="growth-detail">${data.excludedAccounts} internal accounts excluded from product cohorts. Source properties are the latest recorded values, not immutable first-touch attribution. Unknown is not proof of organic acquisition. Cost per acquired customer requires spend and a verified billing join.</p>`;
     document.getElementById('growth-attribution').addEventListener('change',renderGrowthChannels);
     renderGrowthChannels();
+    organizeReports();
 }
 function renderGrowthChannels() {
     const target = document.getElementById('growth-channel-table');
@@ -342,4 +362,5 @@ function renderGrowthChannels() {
     const known = rows.filter(row=>row.source !== 'Unknown').reduce((sum,row)=>sum+row.signups,0);
     const labels = {store_search:'Store search',friend:'Friend / family',social_video:'TikTok / Instagram',search_article:'Search / article',community:'Community / forum',podcast_youtube:'Podcast / YouTube',other:'Other'};
     target.innerHTML = `<p class="growth-detail">Source coverage: ${known} / ${marketingData.current.signups} new accounts. ${mode === 'observed' ? 'Android evidence only; iOS and unlinked accounts remain unknown.' : 'Answers supplied during onboarding.'}</p><div class="growth-table-wrap"><table class="growth-table"><thead><tr><th>Source</th><th>New accounts</th><th>First dream / 48h</th><th>Week 2 return</th></tr></thead><tbody>${rows.map(row=>`<tr><th scope="row">${growthEscape(labels[row.source] || row.source)}</th><td>${row.signups}</td><td>${growthPercent(row.activation)}<small>${growthSample(row.activation)}</small></td><td>${growthPercent(row.week2)}<small>${growthSample(row.week2)}</small></td></tr>`).join('') || '<tr><td colspan="4">No new accounts in this period.</td></tr>'}</tbody></table></div>`;
+    organizeReports();
 }

@@ -1,0 +1,134 @@
+/* Shared light shell, with an acquisition-first Marketing surface. */
+:root {
+    --bg-primary:#f7f8fa; --bg-secondary:#ffffff; --bg-card:#ffffff; --bg-elevated:#f0f2f5;
+    --text-primary:#242a35; --text-secondary:#586171; --text-muted:#626b7b;
+    --accent-primary:#7045bc; --accent-secondary:#087f95; --accent-success:#137748;
+    --accent-danger:#bb293f; --accent-warning:#865a08;
+}
+body { color-scheme:light; }
+[hidden] { display:none !important; }
+button, select, input { font:inherit; }
+button, select { cursor:pointer; }
+button:focus-visible, a:focus-visible, summary:focus-visible, select:focus-visible, input:focus-visible { outline:3px solid #7045bc; outline-offset:4px; }
+.nav { border-bottom:1px solid #e1e4ea; }
+.container { max-width:1360px; }
+.metric-card,.chart-card,.login-card { border-color:#e1e4ea; box-shadow:none; }
+.metric-card:hover { box-shadow:0 3px 12px #20283708; border-color:#d1c3e7; }
+.nav-brand,.nav-title { color:var(--text-primary); }
+.dashboard-tabs { border-color:#dfe3e9; margin-bottom:26px; }
+.dashboard-tabs button { color:#586171; }
+.dashboard-tabs button[aria-selected="true"] { color:#6236a9; background:#eee8f7; }
+#marketing-view .growth-heading { margin:0 0 22px; align-items:center; }
+#marketing-view .growth-heading h1 { font-size:28px; }
+#marketing-view .growth-heading .acq-eyebrow { display:none; }
+#marketing-view .growth-heading p { font-size:14px; }
+#marketing-view a { color:#6439aa; }
+#marketing-view h2 { font-size:18px; font-weight:600; letter-spacing:-.025em; }
+#marketing-view h3 { font-size:15px; }
+#marketing-view .acq-eyebrow { color:#635674 !important; font-size:11px; }
+#marketing-view .growth-detail { color:#586171; line-height:1.65; }
+#marketing-view .acq-date-toolbar { margin:0; padding:0 0 20px; background:none; border:0; gap:20px; }
+#marketing-view .acq-preset-label { font-size:12px; color:#586171; }
+#marketing-view select,#marketing-view input,.login-input { background:#fff; border:1px solid #ccd2dd; color:#242a35; color-scheme:light; border-radius:8px; padding:9px 12px; }
+#marketing-view .acq-range-caption { gap:4px; }
+#marketing-view .acq-range-caption strong { font-size:14px; font-weight:500; }
+#marketing-view .acq-range-caption span { font-size:12px; color:#626b7b; }
+.growth-button,.btn-logout,#marketing-reports button,#marketing-setup button { border:1px solid #ccd2dd; border-radius:8px; background:white; color:#343b48; padding:9px 14px; }
+.marketing-nav { display:flex; gap:24px; border-bottom:1px solid #dfe3e9; margin-bottom:24px; }
+.marketing-nav button { border:0; border-bottom:2px solid transparent; padding:12px 0; background:transparent; color:#586171; font-size:14px; }
+.marketing-nav button[aria-current] { color:#6236a9; border-bottom-color:#7045bc; font-weight:600; }
+.stage-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); list-style:none; padding:0; gap:14px; margin:0 0 28px; }
+.stage-grid li { min-width:0; }
+.stage-card { width:100%; height:100%; min-height:177px; display:flex; flex-direction:column; align-items:flex-start; text-align:left; padding:19px 17px; border:1px solid #e0e3e9; border-radius:12px; background:#fff; color:#242a35; transition:border-color .15s; }
+.stage-card:hover { border-color:#a88ecb; }
+.stage-label { display:flex; align-items:center; gap:7px; width:100%; font-size:13px; font-weight:600; white-space:nowrap; }
+.stage-number { color:#746780; font-size:11px; font-weight:500; }
+.stage-arrow { margin-left:auto; color:#796b87; }
+.stage-value { font-size:34px; line-height:1.2; letter-spacing:-.04em; margin:20px 0 12px; font-weight:600; }
+.stage-state { font-size:20px; letter-spacing:-.025em; min-height:41px; display:flex; align-items:center; }
+.stage-definition { font-size:12px; line-height:1.5; color:#586171; }
+.compact-badge,.acq-badge { display:inline-block; font-size:11px; line-height:1.5; padding:3px 7px; border-radius:5px; color:#664c20; background:#fbf2dd; margin-top:10px; border:0; }
+.overview-chart,.referrer-card { border:1px solid #e0e3e9; border-radius:12px; background:white; padding:24px; }
+.overview-section-header { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.overview-section-header h2,.attention-card h2 { margin:0; }
+.overview-caption { font-size:12px; color:#626b7b; margin:7px 0 0; }
+#marketing-overview .acq-chart-canvas { height:280px; margin:12px 0 0; }
+#marketing-overview #overview-traffic-trend > .growth-detail { display:none; }
+.overview-info { margin-top:14px; color:#586171; font-size:12px; }
+.overview-info summary { cursor:pointer; width:fit-content; padding:5px 0; }
+.overview-info p { line-height:1.6; }
+.overview-bottom { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:28px; margin:24px 0 48px; }
+.referrer-bars { list-style:none; padding:0; margin:24px 0 0; }
+.referrer-bars li { margin-top:19px; }
+.referrer-bars li > div { display:flex; justify-content:space-between; align-items:center; gap:12px; font-size:13px; }
+.referrer-bars li > div > span { overflow-wrap:anywhere; }
+.referrer-bars strong { white-space:nowrap; font-weight:500; }
+.referrer-bars small { color:#626b7b; font-size:11px; }
+.referrer-track { display:block; height:7px; background:#f0edf5; border-radius:6px; margin-top:8px; overflow:hidden; }
+.referrer-track > span { display:block; height:100%; background:#a58acb; border-radius:6px; }
+.text-button { border:0; background:none; color:#6439aa; font-size:12px; white-space:nowrap; padding:8px 0; }
+.attention-card { padding:24px 0; }
+.attention-card ul { list-style:none; padding:0; margin:12px 0; }
+.attention-card li { border-bottom:1px solid #e0e3e9; }
+.attention-card button { width:100%; text-align:left; padding:19px 0; border:0; background:none; color:#343b48; }
+.attention-card button strong { font-size:13px; font-weight:500; display:flex; justify-content:space-between; gap:12px; }
+.attention-card button > span { font-size:12px; color:#626b7b; display:block; margin-top:7px; }
+#marketing-status { font-size:12px; color:#626b7b; }
+.report-toolbar { margin:0 0 24px; font-size:13px; }
+.report-intro { padding:22px 0; margin-bottom:24px; border-bottom:1px solid #dfe3e9; scroll-margin-top:100px; }
+.report-intro p { color:#586171; font-size:14px; margin:10px 0 16px; }
+#marketing-reports .chart-card,#marketing-setup .chart-card { padding:24px 0; border:0; border-radius:0; background:none; border-bottom:1px solid #dfe3e9; margin-bottom:16px; }
+#marketing-reports section,#marketing-setup section { scroll-margin-top:100px; }
+#marketing-reports .growth-kpis { margin-top:20px; }
+#marketing-reports .metric-value { font-size:28px; }
+#marketing-view .acq-coverage,.scope-note { background:none; border:0; border-left:3px solid #d3c3e6; border-radius:0; color:#586171; font-size:13px; padding:10px 14px; line-height:1.6; }
+#marketing-view .acq-empty { background:none; border:0; padding:24px 0; color:#586171; font-size:14px; }
+#marketing-view .acq-empty p { max-width:75ch; margin-top:8px; font-size:13px; }
+#marketing-view .growth-table-wrap { max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; }
+#marketing-view .growth-table { min-width:540px; font-size:13px; }
+#marketing-view .growth-table td,#marketing-view .growth-table th { border-color:#e2e5eb; }
+#marketing-view .growth-table th { color:#343b48; }
+.report-table-details { margin:16px 0; padding:12px 0; }
+#marketing-view summary { cursor:pointer; color:#4e3b6a; font-weight:500; }
+.source-status-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; padding:20px 0; }
+.source-status-list dt { color:#586171; font-size:12px; }
+.source-status-list dd { margin:5px 0 0; font-size:14px; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+@media(max-width:900px) {
+    .stage-grid { gap:10px; }
+    .stage-card { padding:16px 12px; }
+    .stage-label { font-size:12px; }
+    .stage-number,.stage-arrow { display:none; }
+}
+@media(max-width:700px) {
+    .container { padding:0 18px; }
+    #marketing-view .growth-heading { gap:12px; flex-wrap:nowrap; }
+    #marketing-view .growth-heading h1 { font-size:23px; }
+    #marketing-view .growth-heading p { font-size:12px; }
+    .growth-button { font-size:12px; }
+    #marketing-view .acq-date-toolbar { gap:10px; }
+    #marketing-view .acq-preset-label { width:auto; }
+    #marketing-view .acq-range-caption { width:100%; }
+    .marketing-nav { gap:24px; margin-bottom:20px; }
+    .marketing-nav button { font-size:13px; }
+    .stage-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .stage-grid li:last-child { grid-column:1/-1; }
+    .stage-card { min-height:164px; padding:16px; }
+    .stage-grid li:last-child .stage-card { min-height:142px; }
+    .stage-label { font-size:13px; }
+    .stage-state { font-size:19px; }
+    .stage-value { margin:15px 0 8px; }
+    .overview-chart,.referrer-card { padding:18px 14px; }
+    .overview-section-header { align-items:flex-start; flex-wrap:wrap; gap:12px; }
+    #marketing-overview .acq-chart-canvas { height:240px; }
+    #marketing-view h2 { font-size:17px; }
+    .overview-bottom { grid-template-columns:minmax(0,1fr); gap:8px; }
+    .attention-card { padding:20px 0; }
+    .source-status-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    #marketing-view .acq-chart-controls { display:flex; flex-direction:row; gap:8px; }
+    #marketing-view .acq-chart-controls select { width:auto; }
+}
+
+#product-view input,#product-view select { color-scheme:light; color:#242a35 !important; background:#fff !important; border:1px solid #ccd2dd !important; }
+#product-view .metric-subtext { color:#586171; }
+@media(prefers-reduced-motion:reduce) { * { scroll-behavior:auto !important; transition:none !important; } }

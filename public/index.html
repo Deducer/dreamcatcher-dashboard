@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="acquisition.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -62,19 +63,18 @@
             </div>
             <section id="marketing-view" role="tabpanel" aria-labelledby="marketing-tab">
                 <div class="growth-heading">
-                    <div><p class="acq-eyebrow">DREAMCATCHER / MARKETING</p><h1>How people find us</h1><p>Exposure, traffic sources, and the campaigns that bring people to DreamCatcher.</p></div>
+                    <div><p class="acq-eyebrow">DREAMCATCHER / MARKETING</p><h1>How people find us</h1><p>Your acquisition picture, one stage at a time.</p></div>
                     <button class="growth-button" onclick="loadMarketing()">Refresh</button>
                 </div>
                 <div class="acq-date-toolbar">
-                    <label class="acq-preset-label">Website data<select id="acq-source" onchange="changeAcquisitionSource(this.value)"><option value="umami">Umami</option><option value="vercel">Vercel · earlier history</option></select></label>
                     <label class="acq-preset-label">Date range
                         <select id="acq-preset" onchange="changeAcquisitionPreset(this.value)">
-                            <option value="today">Today (so far)</option><option value="yesterday">Yesterday</option><option value="7d">Last 7 days</option><option value="30d" selected>Last 30 days</option><option value="90d">Last 90 days</option>
+                            <option value="today">Today (so far)</option><option value="yesterday">Yesterday</option><option value="7d" selected>Last 7 complete days</option><option value="30d">Last 30 days</option><option value="90d">Last 90 days</option>
                             <option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option>
                             <option value="ytd">Year to date</option><option value="last_year">Last year</option><option value="custom">Custom range…</option>
                         </select>
                     </label>
-                    <div class="acq-range-caption"><strong id="acq-range-label"></strong><span>UTC · weeks start Monday · Today is partial</span></div>
+                    <div class="acq-range-caption"><strong id="acq-range-label"></strong><span>UTC · completed days unless Today is selected</span></div>
                 </div>
                 <form id="acquisition-date-form" class="acq-date-controls" onsubmit="applyAcquisitionDates(event)" hidden>
                     <label>From <input type="date" id="acq-start" required></label>
@@ -85,6 +85,11 @@
                 </form>
                 <p id="acq-date-error" role="alert" hidden></p>
                 <p id="marketing-status" role="status" aria-live="polite">Loading acquisition sources…</p>
+                <nav class="marketing-nav" aria-label="Marketing sections">
+                    <button data-marketing-view="overview" aria-current="page" onclick="setMarketingView('overview')">Overview</button>
+                    <button data-marketing-view="reports" onclick="setMarketingView('reports')">Reports</button>
+                    <button data-marketing-view="setup" onclick="setMarketingView('setup')">Data &amp; setup</button>
+                </nav>
                 <div id="marketing-content"></div>
             </section>
             <section id="product-view" role="tabpanel" aria-labelledby="product-tab" hidden>
@@ -273,7 +278,9 @@
     </div>
 
     <script src="date-presets.js"></script>
+    <script src="acquisition-model.js"></script>
     <script src="marketing.js"></script>
+    <script src="acquisition-overview.js"></script>
     <script src="dashboard.js"></script>
 </body>
 </html>
