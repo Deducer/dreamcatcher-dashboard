@@ -57,7 +57,7 @@ function renderOverview() {
     const target=document.getElementById('marketing-overview'); if(!target) return;
     const dailyOpen=target.querySelector('.overview-info')?.open;
     const focused=target.contains(document.activeElement)?document.activeElement.id:null;
-    const model=AcquisitionModel.overview({acquisition:acquisitionData,marketing:marketingData,mobile:mobileAttributionData,today:acquisitionPreset==='today',metric:trafficMetric});
+    const model=AcquisitionModel.overview({acquisition:acquisitionData,marketing:marketingData || (marketingOutcomesUnavailable?{sources:{outcomes:{status:'unavailable'}}}:null),mobile:mobileAttributionData,today:acquisitionPreset==='today',metric:trafficMetric});
     const e=growthEscape, n=growthNumber;
     const comparison=model.comparison?`${n(model.comparison.previous)} ${trafficMetric==='pageviews'?'page views':'visitors'} in the previous period${model.comparison.percent===null?'':` · ${model.comparison.percent>=0?'+':''}${model.comparison.percent.toFixed(1)}%`}`:'Comparison unavailable for this coverage';
     const max=Math.max(1,...(model.referrers||[]).map(r=>r.pageviews));
