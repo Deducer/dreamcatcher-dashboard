@@ -1,5 +1,6 @@
 const { parse } = require('csv-parse/sync');
 const { createHash } = require('node:crypto');
+const { quotaReset } = require('./appsflyer-quota');
 const DAY = 86400000;
 const APPS = [{ platform: 'ios', label: 'iOS', id: 'id6762375451' }, { platform: 'android', label: 'Android', id: 'ai.thedreamcatcher.app' }];
 const REPORTS = [
@@ -43,7 +44,7 @@ async function limitedBody(response) {
     finally { await reader.cancel().catch(() => {}); }
     return Buffer.concat(chunks).toString('utf8');
 }
-async function rawReport({ request, token, app, report, from, end }) {
+async function rawReport({ request, token, app, report, from, end, now = Date.now() }) {
     let url = new URL(`https://hq1.appsflyer.com/api/raw-data/export/app/${app.id}/${report[0]}/v5`);
     url.search = new URLSearchParams({ from: from.slice(0,19).replace('T',' '), to: end.slice(0,19).replace('T',' '), maximum_rows: '200000' });
     const signal = AbortSignal.timeout(12000);
@@ -59,7 +60,8 @@ async function rawReport({ request, token, app, report, from, end }) {
         }
         if (!response.ok) {
             const body = await limitedBody(response);
-            return { status: response.status === 429 || /call.?limit|limit reached/i.test(body) ? 'rate_limited' : [401,402,403].includes(response.status) || /subscription package|doesn.t include|upgrade|permission denied/i.test(body) ? 'access_unavailable' : 'unavailable', rows: [] };
+            const quota = quotaReset(response.status, body, now);
+            return { quotaResetsAt: quota.resetAt, status: quota.limited ? 'rate_limited' : [401,402,403].includes(response.status) || /subscription package|doesn.t include|upgrade|permission denied/i.test(body) ? 'access_unavailable' : 'unavailable', rows: [] };
         }
         if (!/text\/csv|application\/csv|application\/octet-stream/i.test(response.headers.get('content-type') || '')) throw Error('Invalid response type');
         return { status: 'connected', rows: parseActivity(await limitedBody(response), report, from, end) };
@@ -92,7 +94,7 @@ function summarize(platform, results, window, excludedIds) {
         return { installs:count('install'), reinstalls:count('reinstall'), events:count('event') };
     };
     return { ...platform, status: complete ? 'connected' : results.some(r=>r.status === 'connected') ? 'partial' : results[0]?.status || 'unavailable',
-        reports: results.map(({name,status,checkedAt,refreshAfter})=>({name,status,checkedAt,refreshAfter})),
+        reports: results.map(({name,status,checkedAt,refreshAfter,quotaResetsAt})=>({name,status,checkedAt,refreshAfter,quotaResetsAt})),
         qa: counts('qa'), unclassified: counts('unclassified'), rowCount: rows.length, rows: rows.slice(0,200), truncatedDisplay: rows.length > 200 };
 }
 function createMobileResultsService({ env = process.env, request = fetch, now = Date.now, getExcludedIds = async () => new Set() } = {}) {
@@ -103,8 +105,9 @@ function createMobileResultsService({ env = process.env, request = fetch, now = 
         const entry = { until: now() + 4 * 3600000 };
         entry.promise = (async () => {
             let value;
-            try { value = await rawReport({request,token:env.APPSFLYER_API_TOKEN,app,report,from,end}); }
+            try { value = await rawReport({request,token:env.APPSFLYER_API_TOKEN,app,report,from,end,now:now()}); }
             catch { value = { status:'unavailable', rows:[] }; }
+            if (value.quotaResetsAt) entry.until = Date.parse(value.quotaResetsAt);
             return {...value, name:report[0], checkedAt:new Date(now()).toISOString(), refreshAfter:new Date(entry.until).toISOString()};
         })(); cache.set(key, entry); return entry.promise;
     }
