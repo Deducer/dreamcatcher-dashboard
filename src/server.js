@@ -260,6 +260,7 @@ const authMiddleware = (req, res, next) => {
 const acquisition = createAcquisitionService();
 const umami = require('./umami').createUmamiService();
 const appsflyer = require('./appsflyer').createAppsFlyerService();
+const mobileResults = require('./mobile-results').createMobileResultsService({ getExcludedIds: refreshExcludedIds });
 app.get('/api/mobile-attribution', authMiddleware, async (req, res) => {
     let window;
     try {
@@ -269,7 +270,10 @@ app.get('/api/mobile-attribution', authMiddleware, async (req, res) => {
         } else window = resolveWindow(req.query);
     } catch (error) { return res.status(400).json({ error: error.message }); }
     res.set('Cache-Control', 'no-store');
-    try { res.json(await appsflyer(window)); }
+    try {
+        const [cohorts, activity] = await Promise.all([appsflyer(window), mobileResults(window)]);
+        res.json({ ...cohorts, deviceValidation:'verified_test_devices', subscriptionValidation:'verified_sandbox_purchase_and_renewal', activity });
+    }
     catch { res.status(503).json({ error: 'Mobile attribution reports are unavailable.' }); }
 });
 app.get('/api/acquisition', authMiddleware, async (req, res) => {
