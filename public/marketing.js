@@ -1,5 +1,6 @@
 let marketingRequest = 0;
 let marketingData = null;
+let marketingOutcomesUnavailable = false;
 let acquisitionData = null;
 let mobileAttributionData = null;
 let productInitialized = false;
@@ -97,6 +98,7 @@ async function loadMarketing() {
     acquisitionData = null;
     mobileAttributionData = null;
     marketingData = null;
+    marketingOutcomesUnavailable = false;
     const content = document.getElementById('marketing-content');
     content.hidden = false;
     destroyTrafficChart();
@@ -169,7 +171,7 @@ async function loadMarketing() {
                 if (marketingData) {
                     for (const source of Object.values(marketingData.sources)) if(source.status === 'loading') source.status = 'unavailable';
                     renderMarketing(marketingData);
-                } else document.getElementById('growth-quality-content').textContent = 'App outcomes are unavailable. Website reports above load independently.';
+                } else { marketingOutcomesUnavailable=true; document.getElementById('growth-quality-content').textContent = 'App outcomes are unavailable. Website reports load independently.'; }
             }
         })(),
     ]);
@@ -182,7 +184,7 @@ function growthCard(label, value, detail, comparison) {
 function reportNotice(source, subject) {
     if (source.status === 'not_collected') return '<div class="acq-empty"><strong>No Umami coverage for these dates</strong><p>Collection began September 13, 2026. Choose Today to see new traffic, or Vercel · earlier history for previous records. Earlier days are unknown, not zero.</p></div>';
 
-    if (source.status === 'plan_required') return `<div class="acq-empty"><strong>Campaign tags need Vercel Web Analytics Plus</strong><p>The historical Vercel plan does not expose campaign tags. Select Umami to see campaign tags and store-link clicks collected since September 13, 2026. <a href="#web-measurement-plan">See the measurement setup plan</a>.</p></div>`;
+    if (source.status === 'plan_required') return `<div class="acq-empty"><strong>Campaign tags need Vercel Web Analytics Plus</strong><p>The historical Vercel plan does not expose campaign tags. Select Umami to see campaign tags and store-link clicks collected since September 13, 2026. <a href="#web-measurement-plan" onclick="setMarketingView('setup','web-measurement-plan');return false">See the measurement setup plan</a>.</p></div>`;
     return `<div class="acq-empty"><strong>${sourceStatus(source.status)}</strong><p>${source.status === 'loading' ? `Checking ${subject}…` : `${subject} is not available for this window. Try 7D or 30D, or Refresh. Missing data is not zero.`}</p></div>`;
 }
 function trafficTable(source, title, emptyLabel, total) {
@@ -300,6 +302,8 @@ function renderWebsiteEvents(sources) {
 }
 
 function renderTrafficTrend() {
+    for(const id of ['traffic-metric','overview-metric']) { const select=document.getElementById(id); if(select) select.value=trafficMetric; }
+    for(const id of ['traffic-style','overview-style']) { const select=document.getElementById(id); if(select) select.value=trafficStyle; }
     if(marketingSubview==='setup') return;
     if(marketingSubview==='overview') updateOverviewComparison();
     const target = document.getElementById(marketingSubview==='overview'?'overview-traffic-trend':'acq-traffic-trend');
