@@ -1,0 +1,7 @@
+[Unit]
+Description=Keep DreamCatcher reporting aligned with Postiz token refresh
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+[Install]
+WantedBy=timers.target

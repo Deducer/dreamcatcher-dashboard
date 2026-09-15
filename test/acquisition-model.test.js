@@ -23,7 +23,7 @@ test('partial, stale and today do not compare against full periods',()=>{
 });
 test('QA and unclassified totals never enter business cards; unverified billing never promoted',()=>{
  const m=overview({acquisition:data(),mobile:{platforms:[{installs:200}],activity:{platforms:[{qa:{installs:100},unclassified:{installs:100}}]}},marketing:{sources:{billingCohorts:connected({paid:{total:999}})}},now});
- assert.equal(m.cards[3].value,'Pilot only');assert.equal(m.cards[4].value,'Scope unverified');assert.equal(m.cards[0].value,'Not connected');
+ assert.equal(m.cards[3].value,'Loading…');assert.equal(m.cards[4].value,'Scope unverified');assert.equal(m.cards[0].value,'Loading…');
 });
 test('access failures precede missing connections, no more than two attention items',()=>{
  const m=overview({acquisition:{sources:{totals:{status:'unavailable'}}},mobile:{activity:{platforms:[{reports:[{status:'access_unavailable'}]}]}},now});

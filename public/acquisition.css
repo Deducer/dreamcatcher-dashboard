@@ -132,3 +132,15 @@ button:focus-visible, a:focus-visible, summary:focus-visible, select:focus-visib
 #product-view input,#product-view select { color-scheme:light; color:#242a35 !important; background:#fff !important; border:1px solid #ccd2dd !important; }
 #product-view .metric-subtext { color:#586171; }
 @media(prefers-reduced-motion:reduce) { * { scroll-behavior:auto !important; transition:none !important; } }
+
+/* Channel summaries share the light shell; long identifiers wrap on phones. */
+.channel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin:24px 0}
+.channel-panel{background:#fff;border:1px solid #e5e3e9;border-radius:12px;padding:24px;min-width:0;overflow-wrap:anywhere}
+.channel-panel h3{font-size:17px;margin:0 0 18px;color:#242331}
+.channel-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:0 0 20px}
+.channel-metrics dt{font-size:13px;color:#62616e;margin-bottom:6px}
+.channel-metrics dd{font-size:27px;font-weight:650;margin:0;color:#262231}
+.channel-panel details{font-size:13px;color:#55515e;line-height:1.6}
+#channel-setup{margin:24px 0 36px}.source-status-list dd{overflow-wrap:anywhere}
+#marketing-view .acq-chart-controls select{width:auto!important;min-width:88px;appearance:none;padding:9px 30px 9px 12px!important;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='m1 1 5 5 5-5' stroke='%23595268' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+@media(max-width:600px){.channel-grid{grid-template-columns:1fr;gap:16px}.channel-panel{padding:20px}.channel-metrics{gap:16px}}

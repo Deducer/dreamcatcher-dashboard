@@ -291,6 +291,17 @@ app.get('/api/acquisition', authMiddleware, async (req, res) => {
     }
     catch { res.status(503).json({ error: 'Acquisition sources could not be loaded. Please retry.' }); }
 });
+const channels = require('./channels').createChannelService();
+const storeDownloads = require('./store-downloads').createStoreService();
+for (const [route, service] of [['/api/channels', channels], ['/api/store-downloads', storeDownloads]]) {
+    app.get(route, authMiddleware, async (req, res) => {
+        let window;
+        try { window = req.query.live === '1' ? {days:1,start:new Date().toISOString().slice(0,10)+'T00:00:00.000Z',end:new Date().toISOString(),partialDay:true} : resolveWindow(req.query); }
+        catch (error) { return res.status(400).json({error:error.message}); }
+        res.set('Cache-Control','no-store');
+        try { res.json(await service(window)); } catch { res.status(503).json({error:'Reporting source unavailable.'}); }
+    });
+}
 const marketing = createMarketingService({ supabase, refreshExcludedIds, isExcludedEmail });
 app.get('/api/marketing', authMiddleware, async (req, res) => {
     let window;
