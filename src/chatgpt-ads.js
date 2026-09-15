@@ -19,7 +19,7 @@ function projectSnapshot(snapshot, window, now = Date.now()) {
     if (Date.parse(s.importedAt) > now + 300000) throw Error('Future report');
     const metadata = { mode: 'connector_snapshot', account: s.account.name, currency: 'USD', importedAt: s.importedAt, stale: now - Date.parse(s.importedAt) > 36 * 3600000,
         timeBasis: 'Ads account reporting dates; separate from UTC website dates.',
-        action: 'Agent: refresh through the ChatGPT Ads connector. This is an imported report, not an automatic server connection.' };
+        action: 'Scheduled connector import daily at 8 AM Denver time, with recovery checks for stale reports. Runs on Ian’s Mac; the dashboard reads the latest successful import.' };
     if (window.partialDay) return { ...metadata, status: 'completed_days_only', data: null };
     const from = window.start.slice(0, 10), through = new Date(Date.parse(window.end) - 1).toISOString().slice(0, 10);
     const rows = s.report.data.filter(r => r.readable_time >= from && r.readable_time <= through).sort((a,b) => a.start_time - b.start_time);

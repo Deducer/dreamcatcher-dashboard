@@ -54,3 +54,17 @@ test('provider plan denial is explicit even on HTTP 400, without leaking provide
     const r=await rawReport({app,report:REPORTS[4],from,end,token:'sensitive',request:async()=>new Response("Your current subscription package doesn't include raw data reports. sensitive",{status:400})});
     assert.equal(r.status,'access_unavailable');assert.ok(!JSON.stringify(r).includes('sensitive'));
 });
+
+test('daily HTTP 400 quota beats upgrade wording and retries only after UTC reset', async()=>{
+    let time=Date.parse('2026-09-15T16:00:00Z'),calls=0;
+    const service=createMobileResultsService({env:{APPSFLYER_API_TOKEN:'secret'},now:()=>time,request:async()=>{
+        calls++;return new Response("You've reached your maximum number of in-app event reports that can be downloaded today for this app. Contact us to upgrade.",{status:400});
+    }});
+    const w={start:from,end};
+    const first=await service(w);
+    assert.equal(first.platforms[0].reports[0].status,'rate_limited');
+    assert.equal(first.platforms[0].reports[0].quotaResetsAt,'2026-09-16T00:00:00.000Z');
+    assert.equal(first.platforms[0].qa.events,null);
+    time+=5*3600000;await service(w);assert.equal(calls,12);
+    time=Date.parse('2026-09-16T00:00:01Z');await service(w);assert.equal(calls,24);
+});

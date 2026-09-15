@@ -115,3 +115,14 @@ test('oversized and non-CSV responses are rejected before any partial result is 
         assert.equal(result.platforms[0].installs,null);
     }
 });
+
+test('aggregate daily quota waits until midnight UTC without returning a false zero',async()=>{
+    let time=now(),calls=0;
+    const service=createAppsFlyerService({env,now:()=>time,request:async()=>{calls++;return new Response('Daily report quota exceeded',{status:400});}});
+    const result=await service(window);
+    assert.equal(result.platforms[0].status,'rate_limited');
+    assert.equal(result.platforms[0].refreshAfter,'2026-09-16T00:00:00.000Z');
+    assert.equal(result.platforms[0].installs,null);
+    time+=5*3600000;await service(window);assert.equal(calls,2);
+    time=Date.parse('2026-09-16T00:00:01Z');await service(window);assert.equal(calls,4);
+});

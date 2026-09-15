@@ -1,5 +1,6 @@
 const { parse } = require('csv-parse/sync');
 
+const { quotaReset } = require('./appsflyer-quota');
 const DAY = 86400000;
 const APPS = [
     { platform: 'ios', label: 'iOS', id: 'id6762375451' },
@@ -88,9 +89,10 @@ function createAppsFlyerService({ env = process.env, request = fetch, now = Date
                 }
                 if (!response.ok) {
                     const body = await readLimited(response);
-                    const status = response.status === 429 || /limit reached|call.?limit/i.test(body) ? 'rate_limited' : [401, 402, 403].includes(response.status) ? 'access_unavailable' : 'unavailable';
-                    entry.until = now() + 15 * 60000;
-                    return { status, checkedAt, rows: null };
+                    const quota = quotaReset(response.status, body, now());
+                    const status = quota.limited ? 'rate_limited' : [401, 402, 403].includes(response.status) ? 'access_unavailable' : 'unavailable';
+                    entry.until = quota.resetAt ? Date.parse(quota.resetAt) : now() + 15 * 60000;
+                    return { status, checkedAt, quotaResetsAt: quota.resetAt, rows: null };
                 }
                 if (!/text\/csv|application\/csv/i.test(response.headers.get('content-type') || '')) throw Error('Unexpected report type');
                 const rows = parseReport(await readLimited(response), from, through);
@@ -121,7 +123,7 @@ function createAppsFlyerService({ env = process.env, request = fetch, now = Date
             const report = await snapshot(app, snapshotStart, today);
             const rows = report.rows?.filter(row => row.date >= from && row.date <= through) ?? null;
             return {
-                ...app, status: report.status, checkedAt: report.checkedAt,
+                ...app, status: report.status, checkedAt: report.checkedAt, quotaResetsAt: report.quotaResetsAt,
                 refreshAfter: new Date(snapshots.get(app.id).until).toISOString(), rows,
                 installs: rows ? sum(rows.map(row => row.installs)) : null,
                 events: Object.fromEntries(EVENT_NAMES.map(name => [name, rows ? sum(rows.map(row => row.events[name])) : null])),
