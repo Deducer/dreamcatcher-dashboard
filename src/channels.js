@@ -1,4 +1,5 @@
 const fs = require('node:fs/promises');
+const { readChatgptAds } = require('./chatgpt-ads');
 const DAY = 86400000;
 
 function instagramMetrics(payload) {
@@ -15,9 +16,10 @@ function instagramMetrics(payload) {
 function createChannelService({ env = process.env, fetchImpl = fetch, readFile = fs.readFile, now = Date.now } = {}) {
     const cache = new Map();
     return async window => {
+        const chatgpt = await readChatgptAds(window, { env, readFile, now });
         const key = window.start + ':' + window.end;
         const hit = cache.get(key);
-        if (hit && now() - hit.at < 15 * 60000) return hit.result;
+        if (hit && now() - hit.at < 15 * 60000) return { ...hit.result, chatgpt };
         let instagram;
         try {
             const c = JSON.parse(await readFile(env.POSTIZ_INSIGHTS_FILE || '/app/data/postiz-instagram.json', 'utf8'));
@@ -37,7 +39,7 @@ function createChannelService({ env = process.env, fetchImpl = fetch, readFile =
         }
         const result = { start: window.start, end: window.end, generatedAt: new Date(now()).toISOString(), instagram,
             tiktok: { status: 'pending_review', data: null, action: 'Ian / Abb: let us know when TikTok approves the app; then we can validate insights access.' },
-            chatgpt: { status: 'export_needed', data: null, action: 'Ian / Abb: provide a campaign performance CSV from ChatGPT Ads Manager. Automated access is blocked by browser verification.' },
+            chatgpt,
             search: { status: 'planned', data: null, action: 'Connect Search Console when search promotion starts.' } };
         cache.set(key, { at: now(), result });
         if (cache.size > 100) cache.delete(cache.keys().next().value);

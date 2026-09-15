@@ -30,7 +30,7 @@
         if(stale) gaps.push({title:'Website snapshot is out of date',detail:'Refresh and check the connection.',target:'website-setup'});
         if(channels?.instagram?.status==='access_unavailable') gaps.unshift({title:'Instagram access needs attention',detail:'Agent: check the Postiz connection.',target:'channel-setup'});
         if(storeReports?.android?.status==='access_unavailable') gaps.push({title:'Android downloads need report access',detail:'Permission saved; Agent is checking Google access.',target:'channel-setup'});
-        if(channels?.chatgpt?.status!=='connected') gaps.push({title:'Add ChatGPT Ads performance',detail:'Ian / Abb: provide a campaign export.',target:'channel-setup'});
+        if(channels?.chatgpt && !today && (channels.chatgpt.status!=='connected' || channels.chatgpt.stale || channels.chatgpt.data?.partial)) gaps.push({title:'Refresh ChatGPT Ads reporting',detail:'Agent: import updated dates through the connector.',target:'channel-setup'});
         if(!verifiedPaid) gaps.push({title:'Confirm paid-start reporting scope',detail:'Verify production and sandbox separation.',target:'website-setup'});
         return {cards,comparison,badge,stale,gaps:gaps.slice(0,2),referrers:sources.referrers?.status==='connected'?(sources.referrers.data||[]).filter(r=>Number.isFinite(r.pageviews)).sort((a,b)=>b.pageviews-a.pageviews).slice(0,5):null,referrerStatus:availability(sources.referrers?.status || (acquisition?'unavailable':'loading'))};
     }
