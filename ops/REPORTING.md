@@ -19,8 +19,18 @@ Check with `systemctl status dreamcatcher-postiz-sync.timer` and file `stat` onl
 ## Remaining work
 
 - Ian confirmed the account-level permission was saved September 15. Google still returns 403; its API docs allow up to 48 hours for permission propagation (https://developers.google.com/android-publisher/api-ref/rest/v3/users#DeveloperLevelPermission). Agent should recheck access; confirm the data schema against the actual report before treating that platform as validated.
-- ChatGPT Ads: automated browser access stopped at verification. Obtain a campaign CSV and validate the real schema before implementing an import; do not infer a paid reporting API from the OpenAI product API key.
+- ChatGPT Ads: connected through Ian's Ads Manager connector (Project Win LLC, Admin access). The dashboard reads a private imported report; it cannot invoke Ian's connector itself. Agent refresh is still required; no server API token or automatic schedule has been created.
 - TikTok: user says app review is pending. Publishing connection presence does not prove approved analytics access. Validate after review.
 - Search Console: planned channel, not active yet.
 - AppsFlyer campaign-to-subscription attribution remains on its existing task. Store downloads and paid starts do not establish a causal funnel.
 - Missing history and privacy-limited store days remain unknown. Counts from different platforms are never added into unique people or cross-stage conversion rates.
+
+## ChatGPT Ads connector imports
+
+Use the Ads Manager insights skill. Resolve Project Win LLC by account ID, fetch daily campaign insights with completed account-local days and include zero-impression rows. Use `time_range: {type: "relative_interval", unit: "day", start_ago: 90, end_ago: 0}`, `aggregation_level: "campaign"`, `time_granularity: "daily"`, and `includes: ["zero_impression_items"]`. Read all pages; never import a truncated report. Fetch the same period without time granularity and reconcile impressions, clicks, and spend against daily sums. Fetch campaign metadata to label status as of import. No campaign mutations are needed.
+
+The envelope is `{version: 1, importedAt: ISO_TIMESTAMP, account: {id, name, currency, timezone}, campaigns: [{id, name, status}], report: {has_more: false, data: [...]}}`. `report.data` holds the connector's original daily rows, including `readable_time`, `start_time`, `end_time`, `campaign_id`, `impressions`, `clicks`, and `spend`. Currency is USD and spend is in dollars, unlike campaign budget fields in micros. Only the verified Project Win account is accepted. Store real reports outside Git and `public/`.
+
+Validate and atomically import with `node ops/import-chatgpt-ads.cjs /absolute/private/path/chatgpt-ads.json < report.json`. Production path on host is `/var/lib/dreamcatcher-reporting/chatgpt-ads.json`; container path is `/app/data/chatgpt-ads.json`. Keep directory mode 700 and file mode 600. Deploy the validated report through a private SSH pipe; no connector credential is copied to the server. Dashboard Refresh reads the latest file even when Instagram results remain cached.
+
+Daily results use provider reporting-date labels, not UTC rebucketing. Account timezone name was not returned; original period boundaries are retained privately. September's source days begin at 04:00 UTC. Missing campaign/day rows are not zeros. Only dates with all report campaigns represented contribute to totals. Partial ranges are labeled, Today shows completed-days-only, and imports older than 36 hours show Refresh needed. No conversions or attribution are inferred from clicks. No automatic refresh has been scheduled; this remains an agent-operated import until separately automated through supported tooling.
