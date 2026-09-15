@@ -546,7 +546,7 @@ function renderGrowthChart(timeSeries, aggregation = 'day') {
                     }
                 },
                 y: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    grid: { color: 'rgba(35,42,55,0.08)' },
                     ticks: { color: '#737373' },
                     beginAtZero: true
                 }
@@ -601,7 +601,7 @@ function renderAcquisitionChart(timeSeries, aggregation = 'day') {
                     }
                 },
                 y: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    grid: { color: 'rgba(35,42,55,0.08)' },
                     ticks: { color: '#737373', stepSize: 1 },
                     beginAtZero: true
                 }
@@ -653,13 +653,13 @@ function renderRetentionChart(retention) {
             },
             scales: {
                 x: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    grid: { color: 'rgba(35,42,55,0.08)' },
                     ticks: { color: '#737373' },
                     beginAtZero: true
                 },
                 y: {
                     grid: { display: false },
-                    ticks: { color: '#a3a3a3' }
+                    ticks: { color: '#586171' }
                 }
             }
         }
@@ -710,7 +710,7 @@ function renderEmotionChart(emotions) {
                 legend: {
                     position: 'right',
                     labels: {
-                        color: '#a3a3a3',
+                        color: '#586171',
                         padding: 16,
                         usePointStyle: true,
                         pointStyle: 'circle'
@@ -768,10 +768,10 @@ function renderTagsChart(tags) {
             scales: {
                 y: {
                     grid: { display: false },
-                    ticks: { color: '#a3a3a3' }
+                    ticks: { color: '#586171' }
                 },
                 x: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    grid: { color: 'rgba(35,42,55,0.08)' },
                     ticks: { color: '#737373' },
                     beginAtZero: true
                 }
@@ -802,7 +802,7 @@ function renderMethodsChart(methods) {
                 legend: {
                     position: 'right',
                     labels: {
-                        color: '#a3a3a3',
+                        color: '#586171',
                         padding: 16,
                         usePointStyle: true,
                         pointStyle: 'circle'
@@ -865,13 +865,13 @@ function renderDowChart(dow) {
             },
             scales: {
                 y: {
-                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    grid: { color: 'rgba(35,42,55,0.08)' },
                     ticks: { color: '#737373' },
                     beginAtZero: true
                 },
                 x: {
                     grid: { display: false },
-                    ticks: { color: '#a3a3a3' }
+                    ticks: { color: '#586171' }
                 }
             }
         }
