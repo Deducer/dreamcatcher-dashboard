@@ -96,6 +96,7 @@ async function loadMarketing() {
     }
     document.querySelectorAll('.filter-btn').forEach(button => button.classList.toggle('active', !customAcquisitionRange && button.dataset.range === currentRange));
     acquisitionData = null;
+    channelData = null; storeData = null;
     mobileAttributionData = null;
     marketingData = null;
     marketingOutcomesUnavailable = false;
@@ -108,21 +109,31 @@ async function loadMarketing() {
         <div id="acquisition-content"></div>
         <section id="report-installs" class="report-intro"><h2>App installs</h2><p>Pilot only. QA and unclassified records are excluded from business totals.</p><button onclick="setMarketingView('setup','mobile-attribution-content')">View QA results</button></section>
         <section class="chart-card growth-section" id="acquisition-outcomes"><h2>Subscriptions &amp; app outcomes</h2><p class="growth-detail">Independent app and billing totals; not a joined website-to-app funnel.</p><p class="scope-note">Paid starts: production / sandbox scope unverified. Provider totals are retained below for review.</p><div id="growth-quality-content"><p class="growth-detail">Loading app and billing outcomes…</p></div></section></div>
-        <div id="marketing-setup" hidden><h2>Data &amp; setup</h2><p class="growth-detail">Connections, coverage and internal test evidence.</p><div id="website-setup"></div><div id="mobile-attribution-content"></div></div>`;
+        <div id="marketing-setup" hidden><h2>Data &amp; setup</h2><p class="growth-detail">Connections, coverage and internal test evidence.</p><div id="channel-setup"></div><div id="website-setup"></div><div id="mobile-attribution-content"></div></div>`;
     document.getElementById('acq-source').value=acquisitionProvider;
     applyMarketingView();
     renderOverview();
     document.getElementById('marketing-status').textContent = 'Loading acquisition sources…';
     renderAcquisition();
     renderMobileAttribution();
-    const get = async path => {
-        const response = await fetch(`${path}?${query}`, { signal: AbortSignal.timeout(15000) });
+    const get = async (path, timeout=15000) => {
+        const response = await fetch(`${path}?${query}`, { signal: AbortSignal.timeout(timeout) });
         if (response.status === 401) { if (request === marketingRequest) showLogin(); throw Error('Auth'); }
         if (!response.ok) throw Error('Unavailable');
         return response.json();
     };
     // Traffic does not depend on Supabase, billing or PostHog finishing.
     await Promise.allSettled([
+        (async () => {
+            try { const data=await get('/api/channels'); if(request!==marketingRequest)return; channelData=data; }
+            catch { if(request!==marketingRequest)return; channelData={instagram:{status:'unavailable',action:'Agent: retry Instagram reporting.'}}; }
+            renderChannelReports(); renderOverview();
+        })(),
+        (async () => {
+            try { const data=await get('/api/store-downloads',90000); if(request!==marketingRequest)return; storeData=data; }
+            catch { if(request!==marketingRequest)return; storeData={apple:{status:'unavailable'},android:{status:'unavailable'}}; }
+            renderChannelReports(); renderOverview();
+        })(),
         (async () => {
             try {
                 const data = await get('/api/mobile-attribution');
@@ -175,7 +186,7 @@ async function loadMarketing() {
             }
         })(),
     ]);
-    if(request===marketingRequest) { renderOverview(); organizeReports(); }
+    if(request===marketingRequest) { renderChannelReports(); renderOverview(); organizeReports(); }
 }
 
 function growthCard(label, value, detail, comparison) {
@@ -232,17 +243,12 @@ function renderAcquisition() {
             <p class="growth-detail">Visitors can appear under more than one referrer, so rows must not be summed into unique reach. A dash means visitor counts are not supplied for that row; page views remain available. “Others” is the provider’s remaining groups. Referral visits are not social impressions or ad clicks.</p>
         </section>
         <div class="acq-traffic-stack"><section class="chart-card acq-traffic-card"><p class="acq-eyebrow">TRAFFIC OVER TIME</p><h2 class="chart-title">Website traffic over time</h2>
-            <div class="acq-chart-controls"><label>Metric <select id="traffic-metric" onchange="trafficMetric=this.value;renderTrafficTrend()"><option value="pageviews" ${trafficMetric==='pageviews'?'selected':''}>Page views</option><option value="visitors" ${trafficMetric==='visitors'?'selected':''}>Visitors per day</option></select></label><label>Chart <select id="traffic-style" onchange="trafficStyle=this.value;renderTrafficTrend()"><option value="bars" ${trafficStyle==='bars'?'selected':''}>Bars</option><option value="line" ${trafficStyle==='line'?'selected':''}>Line</option></select></label></div>
+            <div class="acq-chart-controls"><span>Visitors per day</span><label>Chart <select id="traffic-style" onchange="trafficStyle=this.value;renderTrafficTrend()"><option value="bars" ${trafficStyle==='bars'?'selected':''}>Bars</option><option value="line" ${trafficStyle==='line'?'selected':''}>Line</option></select></label></div>
             <div id="acq-traffic-trend"></div>
             ${daily.status === 'connected' ? `<details class="acq-daily-values"><summary>View daily values</summary>${trafficTable(daily,'UTC day','',total)}</details>` : ''}
         </section><section class="chart-card"><p class="acq-eyebrow">CONTENT DISCOVERY</p><h2 class="chart-title">Most viewed website pages</h2>
             <p class="growth-detail">All page views by URL path, not first-entry landing pages.</p>${trafficTable(pages,'Page','/',total)}
         </section></div>
-        <section class="chart-card growth-section"><p class="acq-eyebrow">02 / CHANNEL EXPOSURE</p><h2 class="chart-title">Social, search &amp; paid distribution</h2>
-            <p class="growth-detail">Website referrals are live where recorded. Platform exposure and spend require their own reporting connections; they are not inferred from visits.</p>
-            <div class="growth-table-wrap"><table class="growth-table"><thead><tr><th>Channel</th><th>Referred page views</th><th>Exposure / spend coverage</th><th>Source</th></tr></thead><tbody>${channels.map(([name,type,views,status,url])=>`<tr><th scope="row">${name}<small>${type}</small></th><td>${views}</td><td>${status}</td><td><a href="${url}" target="_blank" rel="noopener noreferrer">Open source</a></td></tr>`).join('')}</tbody></table></div>
-            <p class="growth-detail">Instagram and TikTok publishing connections exist in Postiz. Their analytics are not exposed by the installed version. No combined social reach is reported.</p>
-        </section>
         <section class="chart-card growth-section"><p class="acq-eyebrow">03 / CAMPAIGN PERFORMANCE</p><h2 class="chart-title">Which campaigns bring people here?</h2>
             <p class="growth-detail">Tagged website traffic will appear here when available. Mobile campaign records are in Data &amp; setup during the pilot. Ad spend and verified customer revenue by campaign remain unconnected.</p>
             ${trafficTable(campaigns,'Campaign tag','No campaign tag',total)}
@@ -254,7 +260,7 @@ function renderAcquisition() {
             <div><strong>Web analytics setup</strong><p>Umami now supplies website visits, traffic sources, campaign tags and App Store / Google Play link clicks. Vercel collection has been removed from the website; earlier records remain a separate source. <a href="https://analytics.dissonance.cloud/websites/3a631133-dde5-406e-8bfb-8fa32b7a7afc" target="_blank" rel="noopener noreferrer">Open Umami</a>. The dashboard uses a dedicated account with read-only access to DreamCatcher.</p></div>
             <div><strong>Landing-page behavior</strong><p>Microsoft Clarity is installed for optional, consented 18+ landing-page heatmaps and recordings. Dream entry/results are masked; recording stops on dream-form interaction. <a href="https://clarity.microsoft.com/projects/view/yht2eghkun/dashboard" target="_blank" rel="noopener noreferrer">Open Clarity</a>. Reports require processing time and are not imported here.</p></div>
             <div><strong>Search discovery</strong><p>Connect Google Search Console for queries, impressions, clicks and search position. Website referrers alone cannot show how often we appear in search.</p></div>
-            <div><strong>Social exposure</strong><p>Connect Instagram and TikTok views, reach and engagement by post. Add creator placements as identifiable campaigns.</p></div>
+            <div><strong>Discovery channels</strong><p>Instagram account insights use the existing Postiz connection. TikTok awaits app approval. See the connection checklist above for current actions.</p></div>
             <div><strong>Install attribution</strong><p>AppsFlyer is connected for the native test builds: iOS 1.1.4 (54) and Android 1.1.4 (35). See the pilot reports in Data &amp; setup. Device receipt, sandbox subscription delivery and restore checks have passed. Campaign attribution is still being validated.</p></div>
             <div><strong>Paid performance</strong><p>Connect ad impressions, clicks and spend. Match first paid subscriptions to campaigns before calculating acquisition cost.</p></div>
         </div><p class="growth-detail">Umami and Clarity collection began September 13, 2026; their reports are available in the linked tools, subject to consent and processing. This dashboard defaults to Umami; select Vercel for earlier history. AppsFlyer is in testing, with API access on trial. New tools cannot recreate missing history. Product outcomes are in Reports as a quality check.</p></section>`;
@@ -356,6 +362,7 @@ function renderMarketing(data) {
         <p class="growth-detail">${data.excludedAccounts} internal accounts excluded from product cohorts. Source properties are the latest recorded values, not immutable first-touch attribution. Unknown is not proof of organic acquisition. Cost per acquired customer requires spend and a verified billing join.</p>`;
     document.getElementById('growth-attribution').addEventListener('change',renderGrowthChannels);
     renderGrowthChannels();
+    renderChannelReports();
     organizeReports();
 }
 function renderGrowthChannels() {

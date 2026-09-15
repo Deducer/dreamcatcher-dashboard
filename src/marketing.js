@@ -134,7 +134,8 @@ function createMarketingService({ supabase, env = process.env, refreshExcludedId
                 const paid = summaries.actives_new;
                 const required = ['Trial Starts', 'Conversions', 'Expirations', 'Pending'];
                 if (!required.every(k => Number.isFinite(trials[k])) || !Number.isFinite(paid['Total Paid Subscriptions'])) throw new Error('Incomplete billing metrics');
-                return { start: start.slice(0, 10), end: chartEnd,
+                // RevenueCat Charts contain production transactions only; exclude Test Store explicitly.
+                return { start: start.slice(0, 10), end: chartEnd, scope: 'production', scopeVerified: true, stores: ['app_store', 'play_store'],
                     trials: { started: trials['Trial Starts'], converted: trials.Conversions, expired: trials.Expirations, pending: trials.Pending,
                         percent: trials.Pending === 0 && trials['Trial Starts'] > 0 ? trials.Conversions / trials['Trial Starts'] * 100 : null },
                     paid: { total: paid['Total Paid Subscriptions'], conversions: paid['Trial Conversions'], direct: paid['Direct Subscriptions'], resubscriptions: paid.Resubscriptions, productChanges: paid['Product Changes'] } };

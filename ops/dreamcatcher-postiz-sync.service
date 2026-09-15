@@ -1,0 +1,7 @@
+[Unit]
+Description=Sync DreamCatcher Instagram reporting connection from Postiz
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/opt/dreamcatcher-reporting/sync-postiz-instagram.sh
+UMask=0077
