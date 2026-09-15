@@ -18,7 +18,7 @@ Check with `systemctl status dreamcatcher-postiz-sync.timer` and file `stat` onl
 
 ## Remaining work
 
-- Verify Google Play access after the account-level permission is saved; confirm the data schema against the actual report before treating that platform as validated.
+- Ian confirmed the account-level permission was saved September 15. Google still returns 403; its API docs allow up to 48 hours for permission propagation (https://developers.google.com/android-publisher/api-ref/rest/v3/users#DeveloperLevelPermission). Agent should recheck access; confirm the data schema against the actual report before treating that platform as validated.
 - ChatGPT Ads: automated browser access stopped at verification. Obtain a campaign CSV and validate the real schema before implementing an import; do not infer a paid reporting API from the OpenAI product API key.
 - TikTok: user says app review is pending. Publishing connection presence does not prove approved analytics access. Validate after review.
 - Search Console: planned channel, not active yet.

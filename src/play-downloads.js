@@ -36,7 +36,7 @@ function createPlayService({env=process.env,fetchImpl=fetch,now=Date.now}={}) {
             const grouped=new Map();for(const r of rows)if(r.date>=window.start.slice(0,10)&&r.date<window.end.slice(0,10))grouped.set(r.date,(grouped.get(r.date)||0)+r.userInstalls);
             const daily=[...grouped].sort(([a],[b])=>a.localeCompare(b)).map(([date,userInstalls])=>({date,userInstalls}));
             value={status:'connected',data:{userInstalls:daily.length?daily.reduce((n,r)=>n+r.userInstalls,0):null,daily,reportedDays:daily.length,through:daily.at(-1)?.date||null,partial:!!missingMonths||daily.length<window.days},checkedAt:new Date(now()).toISOString(),definition:'Google Play daily user installs, by store reporting date. Includes available tracks; internal-test separation is not verified. Not added to iOS or AppsFlyer totals.'};
-        } catch {value={status:'access_unavailable',data:null,action:'Ian: grant account-level View app information and download bulk reports (read-only) to dreamcatcher-eas-submit@dreamscribe-17c65.iam.gserviceaccount.com, then Save changes. Agent will recheck access.'};}
+        } catch {value={status:'access_unavailable',data:null,action:'Google still denies report access. Ian confirmed the account-level permission was saved Sep 15. Agent: recheck after permission propagation; Google says changes can take up to 48 hours.'};}
         cache.set(key,{at:now(),value});if(cache.size>100)cache.delete(cache.keys().next().value);return value;
     };
 }
