@@ -1,7 +1,8 @@
 # AppsFlyer reporting and device validation
 
-Status as of September 13, 2026 (Denver): **reporting connected; device, purchase
-and paid attribution validation pending**. Mobile SDK builds are iOS 1.1.4 (54)
+Status as of September 15, 2026 (Denver): **device and sandbox subscription
+receipt verified; restores passed; Android campaign install attributed. Downstream
+campaign conversion and iOS campaign testing remain pending**. Mobile SDK builds are iOS 1.1.4 (54)
 in TestFlight and Android 1.1.4 (35) in Play Internal Testing. Public releases do
 not yet contain this SDK. Implementation: [mobile PR 105](https://github.com/Project-Win-Inc/dream-catcher-ios/pull/105).
 
@@ -104,3 +105,53 @@ was activated as part of the reporting adapter.
 - [Attribution link structure](https://support.appsflyer.com/hc/en-us/articles/207447163-About-link-structure-and-parameters)
 - [AppsFlyer ChatGPT integration and event mapping](https://support.appsflyer.com/hc/en-us/articles/48439655791249-ChatGPT-Ads-OpenAI-integration-setup)
 - [OpenAI mobile measurement partner setup](https://help.openai.com/en/articles/20001372-set-up-mobile-measurement-partner-integrations)
+
+## September 15 — mobile results reporting
+
+The Marketing tab now reads **activity-time raw reports** alongside the existing
+install-cohort aggregates. Organic and non-organic installs, in-app events and
+reinstalls have independent report status, checked time and next-refresh time.
+A missing/failed report makes the affected count unknown, even when other reports
+have rows. UTC date controls filter events by their actual event time; selecting
+an install cohort is not substituted for event activity.
+
+The raw adapter requests a rolling window of up to 31 UTC calendar days, starting
+no earlier than September 13. The UI states its coverage; earlier selected dates
+are partial coverage. Each app/report is cached for four hours, including errors,
+to protect account-dependent report quotas. Refresh and date changes reuse those
+snapshots. This pilot does not promise retained history beyond that window.
+Trial-expiry pause still applies. Deploy/restart clears the process cache, so
+avoid repeated production restarts and multiple replicas without a shared cache.
+
+Known internal customer IDs, associated device IDs within the fetched reports,
+and explicit QA campaigns classify rows as **QA / internal**. Everything else is
+**unclassified**, never implicitly production. Customer and device IDs are used
+server-side and removed from responses, alongside raw event payloads, emails,
+order IDs, click IDs, URLs and IP addresses. Reported USD event values are shown
+individually, never summed as business revenue. AppsFlyer raw events do not expose
+the RevenueCat sandbox environment, so production revenue still comes from the
+existing RevenueCat reporting rather than this pilot.
+
+PostHog supplies a separate Android Play-referrer handoff table (15-minute cache).
+Only UTC time, source, campaign and presence of an AppsFlyer click ID are returned.
+A handoff is not equated with provider attribution. Reviewed device checks are a
+dated evidence record, independent of the selected window, and link to the HQ
+MMP task. Restore tests are not synthesized as financial events.
+
+Verified Sep 15 at 17:09 UTC: AppsFlyer reports Android's 16:46:26 UTC install with
+source `dc_qa` and campaign `dc_android_attribution_20260915`. Organic event reports
+contain the Android sandbox initial purchase/renewals and the iOS sandbox renewal
+and product change. Both current-account restore checks passed on Ian's devices.
+The Android campaign's downstream event, iOS campaign flow, clean iOS trial/first
+purchase, QA isolation for partner postbacks and ChatGPT delivery remain open.
+The SDK is still in internal builds, not a public-store rollout.
+
+Implementation: `src/mobile-results.js`; authentication remains on
+`GET /api/mobile-attribution`. Tests cover identity stripping, exact date bounds,
+unknown-vs-zero behavior, deduplication, failure isolation, cache reuse, trial
+expiry, size/schema validation and bearer stripping on signed report redirects.
+
+Account-specific limitation confirmed September 15: the reinstall endpoint returns
+HTTP 400 with a subscription-package denial. The ordinary install and in-app
+raw reports work. Reinstall columns therefore remain unknown and report coverage
+shows **Plan / access unavailable**; no paid upgrade was requested or enabled.
