@@ -14,7 +14,7 @@ function renderChannelReports() {
     if(setup) setup.innerHTML=`<h3>Connection checklist</h3><dl class="source-status-list">
         <div><dt>Instagram · Agent</dt><dd>${instagram?.status==='connected'?'Connected using Postiz’s existing authorization. Connection refresh: 15 minutes.':e(instagram?.action||'Checking connection.')}</dd></div>
         <div><dt>Email · Agent</dt><dd>${email?.status==='connected'?'Delivery and click events connected. Marketing-domain click tracking verified.':'Waiting for email events.'}</dd></div>
-        ${[['Apple downloads · Agent',storeData?.apple],['Android downloads · Ian',storeData?.android]].map(([name,s])=>`<div><dt>${name}</dt><dd>${s?.status==='connected'?'Connected. Store reports refresh every six hours; missing dates remain unknown.':e(s?.action||'Checking report access.')}</dd></div>`).join('')}
+        ${[['Apple downloads · Agent',storeData?.apple],['Android downloads · Agent',storeData?.android]].map(([name,s])=>`<div><dt>${name}</dt><dd>${s?.status==='connected'?'Connected. Store reports refresh every six hours; missing dates remain unknown.':e(s?.action||'Checking report access.')}</dd></div>`).join('')}
         <div><dt>ChatGPT Ads · Ian / Abb</dt><dd>${e(channelData?.chatgpt?.action||'Provide the campaign performance export so the reporting import can be verified.')}</dd></div>
         <div><dt>TikTok · Ian / Abb</dt><dd>App review pending. Tell us when approved; Agent will validate analytics access.</dd></div>
         <div><dt>Search · Later</dt><dd>Connect Search Console when search becomes an active channel.</dd></div>
