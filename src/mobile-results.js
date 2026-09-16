@@ -72,7 +72,7 @@ const VALIDATION = {
     reviewedAt: '2026-09-15', source: 'Reviewed device and provider evidence; independent of the selected date range',
     recordUrl: 'https://github.com/Project-Win-Inc/project-win/blob/production/1_tasks/ian-set-up-mmp-attribution.md',
     platforms: [
-        { label: 'Android', build: '1.1.4 (35)', device: 'Passed · SDK receipt matched', subscription: 'Passed · sandbox initial purchase received by AppsFlyer, Sep 15 14:07 UTC', restore: 'Passed · restored and Premium retained after reopening (Ian confirmed)', campaign: 'Passed · AppsFlyer attributed the Sep 15 16:46 UTC install to dc_android_attribution_20260915 (checked 17:09 UTC); downstream conversion still pending' },
+        { label: 'Android', build: '1.1.4 (35)', device: 'Passed · SDK receipt matched', subscription: 'Passed · sandbox initial purchase received by AppsFlyer, Sep 15 14:07 UTC', restore: 'Passed · restored and Premium retained after reopening (Ian confirmed)', campaign: 'Install passed · Sep 15 16:46 UTC, dc_android_attribution_20260915. Sep 16 export check found sandbox renewals/expiration under Organic, with no campaign. New sandbox purchase test pending; campaign-to-subscription match not verified.' },
         { label: 'iOS', build: '1.1.4 (54)', device: 'Passed · SDK receipt matched', subscription: 'Passed · sandbox renewal received by AppsFlyer, Sep 15 15:38 UTC; clean first purchase/trial not yet tested', restore: 'Passed · restored and Premium retained after reopening (Ian confirmed)', campaign: 'Pending · supported iOS campaign/install test still required' },
     ],
     partner: 'ChatGPT Ads delivery is not enabled. QA isolation and partner mapping/receipt must pass first.',
