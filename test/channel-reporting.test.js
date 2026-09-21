@@ -29,3 +29,9 @@ test('only verified production billing enters paid-start card, never on Today',(
 test('store totals are independent of AppsFlyer QA, with explicit iOS coverage',()=>{
  const m=overview({stores:{apple:{status:'connected',data:{firstTime:3,partial:true}}},mobile:{platforms:[{installs:999}]}});assert.equal(m.cards[3].value,3);assert.match(m.cards[3].definition,/iOS/);assert.match(m.cards[3].badge,/reported days/);
 });
+
+test('Play actual Package name header is accepted without silently dropping all rows',()=>{
+ const csv='Date,Package name,Country,Daily User Installs\n2026-09-01,ai.thedreamcatcher.app,US,2\n2026-09-01,ai.thedreamcatcher.app,GB,1\n';
+ assert.deepEqual(playRows(Buffer.from(csv),'ai.thedreamcatcher.app'),[{date:'2026-09-01',userInstalls:2},{date:'2026-09-01',userInstalls:1}]);
+ for(const bad of [csv.replace('Package name','Package'),csv.replace('2026-09-01','2026-02-31'),csv.replace(',2\n',',9007199254740992\n'),csv+'2026-09-01,ai.thedreamcatcher.app,US,2\n']) assert.throws(()=>playRows(Buffer.from(bad),'ai.thedreamcatcher.app'));
+});
