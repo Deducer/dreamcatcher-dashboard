@@ -18,7 +18,7 @@ Check with `systemctl status dreamcatcher-postiz-sync.timer` and file `stat` onl
 
 ## Remaining work
 
-- Ian confirmed the account-level permission was saved September 15. Google still returns 403; its API docs allow up to 48 hours for permission propagation (https://developers.google.com/android-publisher/api-ref/rest/v3/users#DeveloperLevelPermission). Agent should recheck access; confirm the data schema against the actual report before treating that platform as validated.
+- Google access verified September 21: OAuth and the country CSV both return 200. The real header is `Package name`; the reader now accepts normalized header capitalization and rejects unknown schemas. September file has 57 country rows across September 1–8, totaling 6 daily user installs. Newer dates are absent, not zero; `sourceThrough` exposes the latest date even when no rows match the selected range. Internal-test scope remains unverified. The permission recheck is complete; normal dashboard reads continue every six hours.
 - ChatGPT Ads: connected through Ian's Ads Manager connector (Project Win LLC, Admin access). The dashboard reads a private imported report; it cannot invoke Ian's connector itself. The Codex heartbeat `refresh-dreamcatcher-ads-reporting` imports at 08:00 America/Denver, with four-hour checks to recover reports older than 36 hours. It requires Ian’s Mac and connector access; no connector credentials are on the VPS.
 - TikTok: user says app review is pending. Publishing connection presence does not prove approved analytics access. Validate after review.
 - Search Console: planned channel, not active yet.

@@ -3,11 +3,19 @@ const {parse}=require('csv-parse/sync');
 const enc=x=>Buffer.from(JSON.stringify(x)).toString('base64url');
 function playRows(bytes, packageName) {
     const text=bytes[0]===255&&bytes[1]===254?bytes.toString('utf16le'):bytes.toString('utf8');
-    const rows=parse(text,{columns:true,bom:true,skip_empty_lines:true});
-    return rows.filter(r=>r['Package Name']===packageName).map(r=>{
-        const count=r['Daily User Installs'];
-        if(!/^\d{4}-\d{2}-\d{2}$/.test(r.Date)||!/^\d+$/.test(count))throw Error('Invalid Play statistics');
-        return {date:r.Date,userInstalls:Number(count)};
+    let headers;
+    const rows=parse(text,{columns:names=>{
+        headers=names.map(n=>n.trim().toLowerCase());
+        if(new Set(headers).size!==headers.length||!['date','package name','country','daily user installs'].every(n=>headers.includes(n)))throw Object.assign(Error('Invalid Play schema'),{code:'PLAY_SCHEMA'});
+        return headers;
+    },bom:true,skip_empty_lines:true});
+    if(!headers)throw Object.assign(Error('Missing Play schema'),{code:'PLAY_SCHEMA'});
+    const seen=new Set();
+    return rows.filter(r=>r['package name']===packageName).map(r=>{
+        const count=r['daily user installs'],date=r.date,key=date+':'+r.country;
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))||new Date(date).toISOString().slice(0,10)!==date||!/^\d+$/.test(count)||!Number.isSafeInteger(Number(count))||seen.has(key))throw Object.assign(Error('Invalid Play statistics'),{code:'PLAY_SCHEMA'});
+        seen.add(key);
+        return {date,userInstalls:Number(count)};
     });
 }
 function createPlayService({env=process.env,fetchImpl=fetch,now=Date.now}={}) {
@@ -34,9 +42,10 @@ function createPlayService({env=process.env,fetchImpl=fetch,now=Date.now}={}) {
                 rows.push(...playRows(Buffer.from(await r.arrayBuffer()),packageName));
             }
             const grouped=new Map();for(const r of rows)if(r.date>=window.start.slice(0,10)&&r.date<window.end.slice(0,10))grouped.set(r.date,(grouped.get(r.date)||0)+r.userInstalls);
+            const sourceThrough=rows.map(r=>r.date).sort().at(-1)||null;
             const daily=[...grouped].sort(([a],[b])=>a.localeCompare(b)).map(([date,userInstalls])=>({date,userInstalls}));
-            value={status:'connected',data:{userInstalls:daily.length?daily.reduce((n,r)=>n+r.userInstalls,0):null,daily,reportedDays:daily.length,through:daily.at(-1)?.date||null,partial:!!missingMonths||daily.length<window.days},checkedAt:new Date(now()).toISOString(),definition:'Google Play daily user installs, by store reporting date. Includes available tracks; internal-test separation is not verified. Not added to iOS or AppsFlyer totals.'};
-        } catch {value={status:'access_unavailable',data:null,action:'Google still denies report access. Ian confirmed the account-level permission was saved Sep 15. Agent: recheck after permission propagation; Google says changes can take up to 48 hours.'};}
+            value={status:'connected',data:{userInstalls:daily.length?daily.reduce((n,r)=>n+r.userInstalls,0):null,daily,sourceThrough,reportedDays:daily.length,through:daily.at(-1)?.date||null,partial:!!missingMonths||daily.length<window.days},checkedAt:new Date(now()).toISOString(),definition:'Google Play daily user installs, by store reporting date. Includes available tracks; internal-test separation is not verified. Not added to iOS or AppsFlyer totals.'};
+        } catch (error) {value={status:error.code==='PLAY_SCHEMA'?'unavailable':'access_unavailable',data:null,action:error.code==='PLAY_SCHEMA'?'Google report format could not be validated. Agent: inspect the CSV before reporting counts.':'Google report access could not be verified. Agent: inspect authentication and report access.'};}
         cache.set(key,{at:now(),value});if(cache.size>100)cache.delete(cache.keys().next().value);return value;
     };
 }
